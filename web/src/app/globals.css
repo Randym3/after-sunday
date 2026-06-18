@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+:root {
+  --background: #f4f1e8;
+  --foreground: #102015;
+
+  --brand: #012f11;
+  --brand-soft: #073f19;
+  --accent: #9cff00;
+
+  --card: #fffdf7;
+  --muted: #716f68;
+  --border: #ddd8c8;
+}
+
+html {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--background);
+  color: var(--foreground);
+}
+
+::selection {
+  background: var(--accent);
+  color: var(--brand);
+}
