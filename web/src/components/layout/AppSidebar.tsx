@@ -1,9 +1,10 @@
 import Link from "next/link";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 import { appNavigationItems } from "@/lib/constants/navigation";
 
 export function AppSidebar() {
   return (
-    <aside className="hidden min-h-screen w-72 border-r border-[#ddd8c8] bg-[#fffdf7] px-5 py-6 lg:block">
+    <aside className="hidden min-h-screen w-72 flex-col border-r border-[#ddd8c8] bg-[#fffdf7] px-5 py-6 lg:flex">
       <Link href="/app/dashboard" className="block">
         <div className="text-lg font-semibold tracking-tight text-[#012f11]">
           After Sunday
@@ -24,6 +25,10 @@ export function AppSidebar() {
           </Link>
         ))}
       </nav>
+
+      <div className="mt-auto pt-8">
+        <LogoutButton />
+      </div>
     </aside>
   );
 }
