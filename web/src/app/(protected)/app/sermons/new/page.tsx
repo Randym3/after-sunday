@@ -6,9 +6,8 @@ export default function NewSermonPage() {
     <>
       <PageHeader
         title="Create a sermon follow-up"
-        description="Add sermon details and paste the transcript. After that, we will generate a follow-up draft for review."
+        description="Add the sermon details, then upload a recording, provide a YouTube video, or paste an existing transcript."
       />
-
       <SermonForm />
     </>
   );

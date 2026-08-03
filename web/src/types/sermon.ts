@@ -1,8 +1,20 @@
-export type TranscriptStatus = "missing" | "ready" | "processing" | "failed";
+export type SermonSourceType = "upload" | "youtube" | "transcript";
 
-export type AiDraftStatus = "not_started" | "draft_ready" | "approved";
+export type TranscriptionStatus =
+  | "not_started"
+  | "awaiting_upload"
+  | "queued"
+  | "processing"
+  | "ready"
+  | "failed";
 
-export type EmailStatus = "not_started" | "draft" | "sent";
+export type AiDraftStatus =
+  | "not_started"
+  | "generating"
+  | "draft_ready"
+  | "approved";
+
+export type EmailStatus = "not_started" | "draft" | "ready" | "sent";
 
 export interface Sermon {
   id: string;
@@ -10,10 +22,15 @@ export interface Sermon {
   preacher?: string | null;
   scriptureReference?: string | null;
   preachedAt?: string | null;
-  sermonLink?: string | null;
+
+  sourceType: SermonSourceType;
+  sourceUrl?: string | null;
+  mediaFileName?: string | null;
+
   transcript?: string | null;
+  transcriptStatus: TranscriptionStatus;
+
   followUpDraft?: string | null;
-  transcriptStatus: TranscriptStatus;
   aiDraftStatus: AiDraftStatus;
   emailStatus: EmailStatus;
 }
@@ -23,6 +40,8 @@ export interface CreateSermonInput {
   preacher?: string;
   scriptureReference?: string;
   preachedAt?: string;
-  sermonLink?: string;
-  transcript: string;
+
+  sourceType: SermonSourceType;
+  youtubeUrl?: string;
+  transcript?: string;
 }
