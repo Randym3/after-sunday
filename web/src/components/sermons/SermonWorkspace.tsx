@@ -40,7 +40,8 @@ const fallbackSermon: Sermon = {
   transcript: null,
   transcriptStatus: "processing",
 
-  followUpDraft: null,
+    followUpSubject: null,
+    followUpBody: null,
   aiDraftStatus: "not_started",
   emailStatus: "not_started",
 };

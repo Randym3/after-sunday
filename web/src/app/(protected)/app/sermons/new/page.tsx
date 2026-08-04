@@ -1,5 +1,5 @@
 import { PageHeader } from "@/components/ui/PageHeader";
-import { SermonForm } from "@/components/sermons/SermonForm";
+import { CreateSermonFlow } from "@/components/sermons/CreateSermonFlow";
 
 export default function NewSermonPage() {
   return (
@@ -8,7 +8,8 @@ export default function NewSermonPage() {
         title="Create a sermon follow-up"
         description="Add the sermon details, then upload a recording, provide a YouTube video, or paste an existing transcript."
       />
-      <SermonForm />
+
+      <CreateSermonFlow />
     </>
   );
 }

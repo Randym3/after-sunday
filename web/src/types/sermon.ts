@@ -29,8 +29,9 @@ export interface Sermon {
 
   transcript?: string | null;
   transcriptStatus: TranscriptionStatus;
+  followUpSubject?: string | null;
+  followUpBody?: string | null;
 
-  followUpDraft?: string | null;
   aiDraftStatus: AiDraftStatus;
   emailStatus: EmailStatus;
 }
