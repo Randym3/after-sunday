@@ -2,6 +2,8 @@
 
 import { useEffect, useMemo, useState } from "react";
 
+import { EmailPreview } from "@/components/sermons/EmailPreview";
+import { FollowUpEditor } from "@/components/sermons/FollowUpEditor";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -40,9 +42,10 @@ const fallbackSermon: Sermon = {
   transcript: null,
   transcriptStatus: "processing",
 
-    followUpSubject: null,
-    followUpBody: null,
+  followUpSubject: null,
+  followUpBody: null,
   aiDraftStatus: "not_started",
+
   emailStatus: "not_started",
 };
 
@@ -114,11 +117,41 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
+function buildMockFollowUp(sermon: Sermon) {
+  const preacher = sermon.preacher || "Your pastor";
+  const scripture =
+    sermon.scriptureReference || "Sunday’s Scripture passage";
+
+  return {
+    subject: "A few reminders from Sunday’s sermon",
+    body: `Hi {{ firstName }},
+
+We missed you this Sunday and wanted to share a few reminders from the message.
+
+${preacher} preached from ${scripture} and reminded us that God cares faithfully for His people, leads them through difficult seasons, and remains present with them.
+
+Three takeaways:
+
+1. God knows and cares for His people personally.
+2. God leads us even when the path is difficult.
+3. God remains present with us in every valley.
+
+Reflection questions:
+
+1. Where do you need to trust God’s care this week?
+2. What part of the sermon encouraged or challenged you?
+3. Who could you encourage with this passage?
+
+We’re praying for you and hope to see you soon.`,
+  };
+}
+
 export function SermonWorkspace({
   sermonId,
 }: SermonWorkspaceProps) {
   const [sermon, setSermon] = useState<Sermon | null>(null);
-  const [savedMessage, setSavedMessage] = useState("");
+  const [transcriptMessage, setTranscriptMessage] = useState("");
+  const [followUpMessage, setFollowUpMessage] = useState("");
 
   useEffect(() => {
     const storedSermon = sessionStorage.getItem(
@@ -135,11 +168,17 @@ export function SermonWorkspace({
     }
 
     try {
-      const parsedSermon = JSON.parse(storedSermon) as Sermon;
+      const parsedSermon = JSON.parse(
+        storedSermon
+      ) as Partial<Sermon>;
 
       setSermon({
+        ...fallbackSermon,
         ...parsedSermon,
         id: sermonId,
+        followUpSubject:
+          parsedSermon.followUpSubject ?? null,
+        followUpBody: parsedSermon.followUpBody ?? null,
       });
     } catch {
       setSermon({
@@ -180,7 +219,7 @@ export function SermonWorkspace({
       transcriptStatus: "ready",
     });
 
-    setSavedMessage("");
+    setTranscriptMessage("");
   }
 
   function updateTranscript(transcript: string) {
@@ -188,12 +227,20 @@ export function SermonWorkspace({
       return;
     }
 
+    const wasApproved = sermon.aiDraftStatus === "approved";
+
     setSermon({
       ...sermon,
       transcript,
+      aiDraftStatus: wasApproved
+        ? "draft_ready"
+        : sermon.aiDraftStatus,
+      emailStatus: wasApproved
+        ? "draft"
+        : sermon.emailStatus,
     });
 
-    setSavedMessage("");
+    setTranscriptMessage("");
   }
 
   function saveTranscript() {
@@ -202,7 +249,107 @@ export function SermonWorkspace({
     }
 
     persistSermon(sermon);
-    setSavedMessage("Transcript saved.");
+    setTranscriptMessage("Transcript saved.");
+  }
+
+  async function generateFollowUp() {
+    if (
+      !sermon ||
+      sermon.transcriptStatus !== "ready" ||
+      !sermon.transcript?.trim()
+    ) {
+      return;
+    }
+
+    setSermon({
+      ...sermon,
+      aiDraftStatus: "generating",
+    });
+
+    setFollowUpMessage("");
+
+    await new Promise((resolve) => {
+      window.setTimeout(resolve, 700);
+    });
+
+    const draft = buildMockFollowUp(sermon);
+
+    persistSermon({
+      ...sermon,
+      followUpSubject: draft.subject,
+      followUpBody: draft.body,
+      aiDraftStatus: "draft_ready",
+      emailStatus: "draft",
+    });
+  }
+
+  function updateFollowUpSubject(subject: string) {
+    if (!sermon) {
+      return;
+    }
+
+    const wasApproved = sermon.aiDraftStatus === "approved";
+
+    setSermon({
+      ...sermon,
+      followUpSubject: subject,
+      aiDraftStatus: wasApproved
+        ? "draft_ready"
+        : sermon.aiDraftStatus,
+      emailStatus: wasApproved
+        ? "draft"
+        : sermon.emailStatus,
+    });
+
+    setFollowUpMessage("");
+  }
+
+  function updateFollowUpBody(body: string) {
+    if (!sermon) {
+      return;
+    }
+
+    const wasApproved = sermon.aiDraftStatus === "approved";
+
+    setSermon({
+      ...sermon,
+      followUpBody: body,
+      aiDraftStatus: wasApproved
+        ? "draft_ready"
+        : sermon.aiDraftStatus,
+      emailStatus: wasApproved
+        ? "draft"
+        : sermon.emailStatus,
+    });
+
+    setFollowUpMessage("");
+  }
+
+  function saveFollowUp() {
+    if (!sermon) {
+      return;
+    }
+
+    persistSermon(sermon);
+    setFollowUpMessage("Draft saved.");
+  }
+
+  function approveFollowUp() {
+    if (
+      !sermon ||
+      !sermon.followUpSubject?.trim() ||
+      !sermon.followUpBody?.trim()
+    ) {
+      return;
+    }
+
+    persistSermon({
+      ...sermon,
+      aiDraftStatus: "approved",
+      emailStatus: "ready",
+    });
+
+    setFollowUpMessage("Draft approved.");
   }
 
   if (!sermon) {
@@ -217,6 +364,10 @@ export function SermonWorkspace({
 
   const status =
     transcriptStatusConfig[sermon.transcriptStatus];
+
+  const canGenerateFollowUp =
+    sermon.transcriptStatus === "ready" &&
+    Boolean(sermon.transcript?.trim());
 
   return (
     <div className="space-y-8">
@@ -246,7 +397,7 @@ export function SermonWorkspace({
             {getSourceLabel(sermon.sourceType)}
           </p>
 
-          <p className="mt-2 text-sm leading-6 text-stone-600">
+          <p className="mt-2 break-words text-sm leading-6 text-stone-600">
             {sermon.sourceType === "upload"
               ? sermon.mediaFileName || "Recording selected"
               : null}
@@ -277,17 +428,32 @@ export function SermonWorkspace({
 
         <Card>
           <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Transcription
+            Follow-up status
           </p>
 
           <div className="mt-3">
-            <Badge variant={status.variant}>
-              {status.label}
+            <Badge
+              variant={
+                sermon.aiDraftStatus === "approved"
+                  ? "success"
+                  : sermon.aiDraftStatus === "draft_ready"
+                    ? "warning"
+                    : "neutral"
+              }
+            >
+              {sermon.aiDraftStatus === "approved"
+                ? "Approved"
+                : sermon.aiDraftStatus === "draft_ready"
+                  ? "Needs review"
+                  : sermon.aiDraftStatus === "generating"
+                    ? "Generating"
+                    : "Not generated"}
             </Badge>
           </div>
 
           <p className="mt-3 text-sm leading-6 text-stone-600">
-            {status.description}
+            AI-generated content must be approved before it can be
+            sent.
           </p>
         </Card>
       </div>
@@ -356,9 +522,9 @@ export function SermonWorkspace({
               <div className="text-xs text-stone-500">
                 <span>{transcriptWordCount} words</span>
 
-                {savedMessage ? (
+                {transcriptMessage ? (
                   <span className="ml-3 font-medium text-green-800">
-                    {savedMessage}
+                    {transcriptMessage}
                   </span>
                 ) : null}
               </div>
@@ -373,6 +539,27 @@ export function SermonWorkspace({
           </div>
         )}
       </Card>
+
+      <div className="grid gap-6 xl:grid-cols-2">
+        <FollowUpEditor
+          subject={sermon.followUpSubject ?? ""}
+          body={sermon.followUpBody ?? ""}
+          status={sermon.aiDraftStatus}
+          canGenerate={canGenerateFollowUp}
+          message={followUpMessage}
+          onGenerate={generateFollowUp}
+          onSubjectChange={updateFollowUpSubject}
+          onBodyChange={updateFollowUpBody}
+          onSave={saveFollowUp}
+          onApprove={approveFollowUp}
+        />
+
+        <EmailPreview
+          subject={sermon.followUpSubject ?? ""}
+          body={sermon.followUpBody ?? ""}
+          status={sermon.aiDraftStatus}
+        />
+      </div>
     </div>
   );
 }
