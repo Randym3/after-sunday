@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
+import { useRef, useState } from "react";
 
 import {
   isAcceptedRecordingFile,
@@ -66,6 +66,7 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
     text: string;
     tone: "success" | "error";
   } | null>(null);
+  const mediaFileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileDropped(file: File) {
     if (!isAcceptedRecordingFile(file)) {
@@ -77,6 +78,16 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
     }
 
     setMediaFile(file);
+
+    // Put the dropped file on the actual input too. The browser's native
+    // `required` validation checks input.files, not React state, so without
+    // this the form would still block submission with "Please select a file".
+    if (mediaFileInputRef.current) {
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      mediaFileInputRef.current.files = dataTransfer.files;
+    }
+
     setValues((currentValues) => ({
       ...currentValues,
       sourceType: "upload",
@@ -388,6 +399,7 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
 
               <input
                 id="mediaFile"
+                ref={mediaFileInputRef}
                 type="file"
                 accept=".mp3,.m4a,.wav,.mp4,.webm,audio/*,video/*"
                 onChange={(event) => {
