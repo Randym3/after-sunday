@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import Link from "next/link";
+import { useState, useSyncExternalStore } from "react";
 
 import { EmailPreview } from "@/components/sermons/EmailPreview";
 import { FollowUpEditor } from "@/components/sermons/FollowUpEditor";
@@ -146,74 +147,103 @@ We’re praying for you and hope to see you soon.`,
   };
 }
 
+// --- sessionStorage-backed sermon store ---
+//
+// The stored sermon is the single source of truth for this prototype. The
+// workspace subscribes to it with useSyncExternalStore instead of copying it
+// into local state, so React stays in sync with browser storage without an
+// effect-driven load (and without a hidden second source of truth).
+
+type StoreListener = () => void;
+
+const storeListeners = new Set<StoreListener>();
+
+function subscribeToSermonStore(listener: StoreListener) {
+  storeListeners.add(listener);
+  window.addEventListener("storage", listener);
+
+  return () => {
+    storeListeners.delete(listener);
+    window.removeEventListener("storage", listener);
+  };
+}
+
+function notifySermonStoreChanged() {
+  for (const listener of storeListeners) {
+    listener();
+  }
+}
+
+let cachedRawSermon: string | null = null;
+let cachedSermon: Sermon | null = null;
+
+function readStoredSermon(): Sermon | null {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const raw = window.sessionStorage.getItem(SERMON_STORAGE_KEY);
+
+  if (raw === cachedRawSermon) {
+    return cachedSermon;
+  }
+
+  cachedRawSermon = raw;
+
+  if (!raw) {
+    cachedSermon = null;
+    return null;
+  }
+
+  try {
+    cachedSermon = JSON.parse(raw) as Sermon;
+  } catch {
+    cachedSermon = null;
+  }
+
+  return cachedSermon;
+}
+
+function writeStoredSermon(sermon: Sermon) {
+  window.sessionStorage.setItem(
+    SERMON_STORAGE_KEY,
+    JSON.stringify(sermon)
+  );
+  notifySermonStoreChanged();
+}
+
 export function SermonWorkspace({
   sermonId,
 }: SermonWorkspaceProps) {
-  const [sermon, setSermon] = useState<Sermon | null>(null);
   const [transcriptMessage, setTranscriptMessage] = useState("");
   const [followUpMessage, setFollowUpMessage] = useState("");
 
-  useEffect(() => {
-    const storedSermon = sessionStorage.getItem(
-      SERMON_STORAGE_KEY
-    );
+  const storedSermon = useSyncExternalStore(
+    subscribeToSermonStore,
+    readStoredSermon,
+    () => null // getServerSnapshot: no browser storage on the server
+  );
 
-    if (!storedSermon) {
-      setSermon({
+  const sermon: Sermon = storedSermon
+    ? {
+        ...fallbackSermon,
+        ...storedSermon,
+        id: sermonId,
+        followUpSubject: storedSermon.followUpSubject ?? null,
+        followUpBody: storedSermon.followUpBody ?? null,
+      }
+    : {
         ...fallbackSermon,
         id: sermonId,
-      });
+      };
 
-      return;
-    }
-
-    try {
-      const parsedSermon = JSON.parse(
-        storedSermon
-      ) as Partial<Sermon>;
-
-      setSermon({
-        ...fallbackSermon,
-        ...parsedSermon,
-        id: sermonId,
-        followUpSubject:
-          parsedSermon.followUpSubject ?? null,
-        followUpBody: parsedSermon.followUpBody ?? null,
-      });
-    } catch {
-      setSermon({
-        ...fallbackSermon,
-        id: sermonId,
-      });
-    }
-  }, [sermonId]);
-
-  const transcriptWordCount = useMemo(() => {
-    if (!sermon?.transcript?.trim()) {
-      return 0;
-    }
-
-    return sermon.transcript
-      .trim()
-      .split(/\s+/)
-      .filter(Boolean).length;
-  }, [sermon?.transcript]);
-
-  function persistSermon(updatedSermon: Sermon) {
-    setSermon(updatedSermon);
-
-    sessionStorage.setItem(
-      SERMON_STORAGE_KEY,
-      JSON.stringify(updatedSermon)
-    );
-  }
+  const trimmedTranscript = sermon.transcript?.trim() ?? "";
+  const transcriptWordCount = trimmedTranscript
+    ? trimmedTranscript.split(/\s+/).filter(Boolean).length
+    : 0;
 
   function markTranscriptReady() {
-    if (!sermon) {
-      return;
-    }
-
-    persistSermon({
+    writeStoredSermon({
       ...sermon,
       transcript: sermon.transcript || demoTranscript,
       transcriptStatus: "ready",
@@ -223,13 +253,9 @@ export function SermonWorkspace({
   }
 
   function updateTranscript(transcript: string) {
-    if (!sermon) {
-      return;
-    }
-
     const wasApproved = sermon.aiDraftStatus === "approved";
 
-    setSermon({
+    writeStoredSermon({
       ...sermon,
       transcript,
       aiDraftStatus: wasApproved
@@ -244,24 +270,19 @@ export function SermonWorkspace({
   }
 
   function saveTranscript() {
-    if (!sermon) {
-      return;
-    }
-
-    persistSermon(sermon);
+    writeStoredSermon(sermon);
     setTranscriptMessage("Transcript saved.");
   }
 
   async function generateFollowUp() {
     if (
-      !sermon ||
       sermon.transcriptStatus !== "ready" ||
       !sermon.transcript?.trim()
     ) {
       return;
     }
 
-    setSermon({
+    writeStoredSermon({
       ...sermon,
       aiDraftStatus: "generating",
     });
@@ -274,7 +295,7 @@ export function SermonWorkspace({
 
     const draft = buildMockFollowUp(sermon);
 
-    persistSermon({
+    writeStoredSermon({
       ...sermon,
       followUpSubject: draft.subject,
       followUpBody: draft.body,
@@ -284,13 +305,9 @@ export function SermonWorkspace({
   }
 
   function updateFollowUpSubject(subject: string) {
-    if (!sermon) {
-      return;
-    }
-
     const wasApproved = sermon.aiDraftStatus === "approved";
 
-    setSermon({
+    writeStoredSermon({
       ...sermon,
       followUpSubject: subject,
       aiDraftStatus: wasApproved
@@ -305,13 +322,9 @@ export function SermonWorkspace({
   }
 
   function updateFollowUpBody(body: string) {
-    if (!sermon) {
-      return;
-    }
-
     const wasApproved = sermon.aiDraftStatus === "approved";
 
-    setSermon({
+    writeStoredSermon({
       ...sermon,
       followUpBody: body,
       aiDraftStatus: wasApproved
@@ -326,24 +339,19 @@ export function SermonWorkspace({
   }
 
   function saveFollowUp() {
-    if (!sermon) {
-      return;
-    }
-
-    persistSermon(sermon);
+    writeStoredSermon(sermon);
     setFollowUpMessage("Draft saved.");
   }
 
   function approveFollowUp() {
     if (
-      !sermon ||
       !sermon.followUpSubject?.trim() ||
       !sermon.followUpBody?.trim()
     ) {
       return;
     }
 
-    persistSermon({
+    writeStoredSermon({
       ...sermon,
       aiDraftStatus: "approved",
       emailStatus: "ready",
@@ -352,18 +360,7 @@ export function SermonWorkspace({
     setFollowUpMessage("Draft approved.");
   }
 
-  if (!sermon) {
-    return (
-      <Card>
-        <p className="text-sm text-stone-600">
-          Loading sermon workspace...
-        </p>
-      </Card>
-    );
-  }
-
-  const status =
-    transcriptStatusConfig[sermon.transcriptStatus];
+  const status = transcriptStatusConfig[sermon.transcriptStatus];
 
   const canGenerateFollowUp =
     sermon.transcriptStatus === "ready" &&
@@ -371,6 +368,16 @@ export function SermonWorkspace({
 
   return (
     <div className="space-y-8">
+      <div className="mb-6">
+        <Link
+          href="/app/sermons"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+        >
+          <span aria-hidden="true">←</span>
+          Back to sermons
+        </Link>
+      </div>
+
       <PageHeader
         title={sermon.title}
         description={[
@@ -409,6 +416,14 @@ export function SermonWorkspace({
             {sermon.sourceType === "transcript"
               ? "Transcript provided by church staff"
               : null}
+          </p>
+
+          <p className="mt-3 text-xs leading-5 text-stone-500">
+            {sermon.sourceType === "upload"
+              ? "Prototype only: the recording is not uploaded or saved. Only its filename is kept in this browser session."
+              : sermon.sourceType === "youtube"
+                ? "Prototype only: no YouTube connection is made. Only the link is kept in this browser session."
+                : "This transcript is kept in this browser session only."}
           </p>
         </Card>
 
@@ -489,14 +504,17 @@ export function SermonWorkspace({
             <div className="mt-6">
               <Button
                 type="button"
+                variant="secondary"
                 onClick={markTranscriptReady}
               >
                 Mark Transcript Ready
               </Button>
             </div>
 
-            <p className="mt-3 text-xs text-stone-500">
-              This button is only for testing the frontend workflow.
+            <p className="mx-auto mt-3 max-w-md text-xs leading-5 text-stone-500">
+              Prototype action — simulates transcription finishing so
+              you can test the review and follow-up flow. No recording
+              is uploaded or transcribed.
             </p>
           </div>
         ) : (

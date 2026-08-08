@@ -1,7 +1,12 @@
 "use client";
 
+import Link from "next/link";
 import { useState } from "react";
 
+import {
+  isAcceptedRecordingFile,
+  useRecordingFileDrop,
+} from "@/components/sermons/useRecordingFileDrop";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { cn } from "@/lib/utils/cn";
@@ -57,6 +62,34 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
 
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [dragDropNotice, setDragDropNotice] = useState<{
+    text: string;
+    tone: "success" | "error";
+  } | null>(null);
+
+  function handleFileDropped(file: File) {
+    if (!isAcceptedRecordingFile(file)) {
+      setDragDropNotice({
+        text: "That file type isn’t supported. Use an MP3, M4A, WAV, MP4, or WebM recording.",
+        tone: "error",
+      });
+      return;
+    }
+
+    setMediaFile(file);
+    setValues((currentValues) => ({
+      ...currentValues,
+      sourceType: "upload",
+    }));
+    setDragDropNotice({
+      text: `Recording added — ${file.name}`,
+      tone: "success",
+    });
+  }
+
+  const { isDraggingFile } = useRecordingFileDrop({
+    onFileDropped: handleFileDropped,
+  });
 
   function updateField<K extends keyof CreateSermonInput>(
     field: K,
@@ -147,7 +180,8 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-6">
+    <>
+      <form onSubmit={handleSubmit} className="space-y-6">
       <Card>
         <div className="space-y-6">
           <div>
@@ -356,17 +390,34 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
                 id="mediaFile"
                 type="file"
                 accept=".mp3,.m4a,.wav,.mp4,.webm,audio/*,video/*"
-                onChange={(event) =>
-                  setMediaFile(event.target.files?.[0] ?? null)
-                }
+                onChange={(event) => {
+                  setMediaFile(event.target.files?.[0] ?? null);
+                  setDragDropNotice(null);
+                }}
                 className="sr-only"
                 required={values.sourceType === "upload"}
               />
 
               <p className="mt-2 text-xs leading-5 text-stone-500">
-                The file is only stored in browser state for now.
-                Direct storage upload will be added with the API.
+                Tip: you can also drag an audio or video recording
+                anywhere on this page to add it. The file is only
+                stored in browser state for now; direct storage
+                upload will be added with the API.
               </p>
+
+              {dragDropNotice ? (
+                <p
+                  role="status"
+                  className={cn(
+                    "mt-2 text-xs font-medium leading-5",
+                    dragDropNotice.tone === "success"
+                      ? "text-green-800"
+                      : "text-red-700"
+                  )}
+                >
+                  {dragDropNotice.text}
+                </p>
+              ) : null}
             </div>
           ) : null}
 
@@ -460,14 +511,51 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
       </Card>
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-        <Button type="button" variant="secondary">
+        <Link
+          href="/app/sermons"
+          className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-[#fffdf7] px-5 py-2.5 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
+        >
           Cancel
-        </Button>
+        </Link>
 
         <Button type="submit" disabled={isSubmitting}>
           {isSubmitting ? "Creating..." : "Create Sermon"}
         </Button>
       </div>
-    </form>
+      </form>
+
+      {isDraggingFile ? (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-[#012f11]/95 p-6"
+          onDragOver={(event) => event.preventDefault()}
+          onDrop={(event) => event.preventDefault()}
+        >
+          <div
+            role="status"
+            className="w-full max-w-md rounded-3xl border-2 border-dashed border-lime-300/70 bg-[#fffdf7] p-10 text-center shadow-xl"
+          >
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#012f11]">
+              <span
+                className="h-5 w-5 rotate-45 rounded-[4px] bg-lime-300"
+                aria-hidden="true"
+              />
+            </div>
+
+            <p className="mt-6 text-xl font-semibold text-[#102015]">
+              Drop to add your recording
+            </p>
+
+            <p className="mt-2 text-sm leading-6 text-stone-600">
+              Release the file anywhere on this page and it will be
+              attached as the sermon recording.
+            </p>
+
+            <p className="mt-5 text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
+              MP3 · M4A · WAV · MP4 · WebM
+            </p>
+          </div>
+        </div>
+      ) : null}
+    </>
   );
 }
