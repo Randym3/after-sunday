@@ -33,3 +33,6 @@ pnpm-debug.log*
 .DS_Store
 .vscode/
 .idea/
+
+# Freebuff desktop local state
+.freebuff/
