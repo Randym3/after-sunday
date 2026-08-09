@@ -42,3 +42,9 @@ export function updateTranscript(
     body: JSON.stringify({ transcript }),
   });
 }
+
+export function deleteSermon(sermonId: string): Promise<Sermon> {
+  return apiFetch<Sermon>(`/sermons/${sermonId}`, {
+    method: "DELETE",
+  });
+}

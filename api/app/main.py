@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import sermons
+from app.routers import members, sermons
 
 app = FastAPI(title="After Sunday API")
 
@@ -16,6 +16,7 @@ app.add_middleware(
 )
 
 app.include_router(sermons.router)
+app.include_router(members.router)
 
 
 @app.get("/")

@@ -92,3 +92,15 @@ def update_transcript(
     db.commit()
     db.refresh(sermon)
     return sermon
+
+
+@router.delete("/{sermon_id}", response_model=SermonRead)
+def delete_sermon(
+    sermon_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    sermon = _get_sermon_or_404(db, sermon_id)
+    db.delete(sermon)
+    db.commit()
+    return sermon

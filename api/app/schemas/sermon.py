@@ -4,17 +4,14 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
+from app.schemas.aliases import to_camel
+
 SermonSourceType = Literal["upload", "youtube", "transcript"]
 TranscriptionStatus = Literal[
     "not_started", "awaiting_upload", "queued", "processing", "ready", "failed"
 ]
 AiDraftStatus = Literal["not_started", "generating", "draft_ready", "approved"]
 EmailStatus = Literal["not_started", "draft", "ready", "sent"]
-
-
-def to_camel(value: str) -> str:
-    head, *rest = value.split("_")
-    return head + "".join(word.capitalize() for word in rest)
 
 
 class SermonCreate(BaseModel):

@@ -13,8 +13,8 @@ export const appNavigationItems: NavigationItem[] = [
     href: "/app/sermons",
   },
   {
-    label: "Recipients",
-    href: "/app/recipients",
+    label: "Members",
+    href: "/app/members",
   },
   {
     label: "Groups",

@@ -34,7 +34,7 @@ export default function DashboardPage() {
       </div>
 
       <div className="mt-6">
-        <Card className="bg-[#012f11] text-white">
+        <div className="rounded-3xl bg-[#012f11] p-6 text-white shadow-sm">
           <div className="max-w-2xl">
             <p className="text-sm font-medium text-lime-300">MVP workflow</p>
             <h2 className="mt-3 text-2xl font-semibold">
@@ -45,7 +45,7 @@ export default function DashboardPage() {
               the core pastoral workflow.
             </p>
           </div>
-        </Card>
+        </div>
       </div>
     </>
   );

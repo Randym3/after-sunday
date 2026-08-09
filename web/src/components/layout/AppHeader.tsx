@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export function AppHeader() {
   return (
@@ -7,9 +8,16 @@ export function AppHeader() {
         After Sunday
       </Link>
 
-      <Link href="/app/sermons/new" className="text-sm font-medium text-[#012f11]">
-        New sermon
-      </Link>
+      <div className="flex items-center gap-3">
+        <Link
+          href="/app/sermons/new"
+          className="text-sm font-medium text-[#012f11]"
+        >
+          New sermon
+        </Link>
+
+        <LogoutButton />
+      </div>
     </header>
   );
 }

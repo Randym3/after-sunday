@@ -34,16 +34,18 @@ Pages that exist:
 /app/sermons
 /app/sermons/new
 /app/sermons/[sermonId]
+/app/members
 ```
 
 The following routes are referenced in the sidebar (`web/src/lib/constants/navigation.ts`) but are **empty directories with no page.tsx** — visiting them 404s:
 
 ```txt
-/app/recipients
 /app/groups
 /app/email-campaigns
 /app/settings
 ```
+
+The sidebar labels Members (was Recipients) and points at `/app/members`; the old empty `/app/recipients` directory was removed.
 
 The protected layout (`web/src/app/(protected)/app/layout.tsx`) checks Supabase claims via `supabase.auth.getClaims()` and redirects unauthenticated users to `/login`.
 
@@ -196,23 +198,28 @@ Approval invalidation is implemented: editing the subject, body, or transcript a
 
 ## Backend
 
-As of 2026-08-08, the FastAPI app implements the sermon vertical slice (`08_BACKEND_FIRST_SLICE.md`):
+As of 2026-08-09, the FastAPI app implements the sermon vertical slice (`08_BACKEND_FIRST_SLICE.md`) plus member CRUD:
 
 ```txt
-GET    /                       -> status ok
-GET    /health                 -> healthy
-POST   /sermons                -> create sermon (201)
-GET    /sermons                -> list own sermons
-GET    /sermons/{id}           -> get one sermon
-PATCH  /sermons/{id}           -> partial update
+GET    /                        -> status ok
+GET    /health                  -> healthy
+POST   /sermons                 -> create sermon (201)
+GET    /sermons                 -> list all sermons (newest first)
+GET    /sermons/{id}            -> get one sermon
+PATCH  /sermons/{id}            -> partial update
 PATCH  /sermons/{id}/transcript -> save transcript edits
+POST   /members                 -> create member (201)
+GET    /members                 -> list members (alphabetical)
+GET    /members/{id}            -> get one member
+PATCH  /members/{id}            -> partial update
+DELETE /members/{id}            -> delete member
 ```
 
 - **Postgres**: local Docker container (`api/docker-compose.yml`, `postgres:16-alpine`) mapped to host port **5433** because a native Postgres 17 (EDB, launchd) already occupies 5432 on this machine. Named volume `after_sunday_pgdata`.
-- **Migrations**: Alembic (`api/alembic/`), first migration `0001_create_sermons` creates the `sermons` table with ownership columns (`created_by_user_id` NOT NULL, nullable `church_id`) and indexes.
-- **Auth**: every `/sermons` request requires `Authorization: Bearer <supabase access token>`; FastAPI resolves the user via Supabase's `GET /auth/v1/user` (no new dependency). Queries are scoped to the authenticated user; other users get 404.
-- **Models/schemas**: `api/app/models/sermon.py` (SQLAlchemy), `api/app/schemas/sermon.py` (Pydantic with camelCase aliases so the API speaks the frontend `Sermon` type).
-- **Frontend client**: `web/src/lib/api/client.ts` (fetch wrapper attaching the bearer token) and `web/src/lib/api/sermons.ts` (typed functions). `NEXT_PUBLIC_API_URL=http://localhost:8000` is already set.
+- **Migrations**: Alembic (`api/alembic/`). `0001_create_sermons` creates `sermons`; `0002_create_members` creates `members` (unique email, `status` defaulting to `active`, ownership columns `created_by_user_id` NOT NULL + nullable `church_id`).
+- **Auth**: every request requires `Authorization: Bearer <supabase access token>`; FastAPI resolves the user via Supabase's `GET /auth/v1/user` (no new dependency). **No ownership scoping** — any authenticated user can read/edit/delete any sermon or member (a deliberate dev decision after the ownership-wall removal; revisit with multi-tenancy).
+- **Models/schemas**: `api/app/models/{sermon,member}.py` (SQLAlchemy), `api/app/schemas/{sermon,member}.py` (Pydantic with camelCase aliases via `api/app/schemas/aliases.py` so the API speaks the frontend `Sermon`/`Member` types).
+- **Frontend client**: `web/src/lib/api/client.ts` (fetch wrapper attaching the bearer token, refreshing expired sessions), `web/src/lib/api/{sermons,members}.ts` (typed functions). `NEXT_PUBLIC_API_URL=http://localhost:8000` is already set.
 - **Config**: `api/.env` (gitignored) holds `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`; `api/.env.example` documents them.
 
 `api/requirements.txt` pre-installs alembic, SQLAlchemy, psycopg, openai, and resend. `api/app.save` is a stray draft file.
@@ -232,8 +239,8 @@ PATCH  /sermons/{id}/transcript -> save transcript edits
 - asynchronous jobs
 - YouTube OAuth/channel integration
 - real AI generation (follow-up draft is generated in-browser and, for persisted sermons, is not yet saved server-side)
-- recipients/groups
-- campaign persistence
+- groups (deferred; members are built, groups are not needed for MVP)
+- campaign / sermon follow-up persistence and sending
 - email sending
 - analytics
 - multi-tenant church/workspace implementation (ownership exists per-user; `church_id` column is a nullable placeholder)

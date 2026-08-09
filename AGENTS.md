@@ -122,6 +122,15 @@ npm run build
 
 Do not claim checks passed unless they were actually run.
 
+## Commit Message Style
+
+Write commit messages the way a developer on this repo would, not like an AI assistant:
+
+- One short, plain summary line in lowercase, e.g. `add follow-up generation and approval workflow` or `fix drag-drop file validation`.
+- No emojis, no robot/AI signatures or footers, no generated-by notices.
+- Skip bullet lists unless a change genuinely spans several unrelated areas, and keep them terse if used.
+- Conventional prefixes (`feat:`, `fix:`) are optional; match whatever style the surrounding history uses.
+
 ## Scope Discipline
 
 If asked to continue development without a specific task, follow `docs/agent/04_ROADMAP.md`.
