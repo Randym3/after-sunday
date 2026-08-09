@@ -1,4 +1,17 @@
-export type MemberStatus = "active" | "paused";
+export type MemberStatus =
+  | "active"
+  | "paused"
+  | "inactive"
+  | "removed";
+
+export type MemberRole =
+  | "member"
+  | "pastor"
+  | "deacon"
+  | "elder"
+  | "leader"
+  | "volunteer"
+  | "visitor";
 
 export interface Member {
   id: string;
@@ -7,6 +20,7 @@ export interface Member {
   email: string;
   phone?: string | null;
   status: MemberStatus;
+  role: MemberRole;
   notes?: string | null;
   createdAt: string;
   updatedAt: string;
@@ -18,5 +32,6 @@ export interface CreateMemberInput {
   email: string;
   phone?: string;
   status?: MemberStatus;
+  role?: MemberRole;
   notes?: string;
 }

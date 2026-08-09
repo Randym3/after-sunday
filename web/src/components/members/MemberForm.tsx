@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/Card";
 import type {
   CreateMemberInput,
   Member,
+  MemberRole,
   MemberStatus,
 } from "@/types/member";
 
@@ -31,6 +32,7 @@ export function MemberForm({
   const [status, setStatus] = useState<MemberStatus>(
     member?.status ?? "active"
   );
+  const [role, setRole] = useState<MemberRole>(member?.role ?? "member");
   const [notes, setNotes] = useState(member?.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
 
@@ -46,6 +48,7 @@ export function MemberForm({
         email: email.trim(),
         phone: phone.trim() || undefined,
         status,
+        role,
         notes: notes.trim() || undefined,
       });
     } finally {
@@ -152,6 +155,31 @@ export function MemberForm({
           >
             <option value="active">Active</option>
             <option value="paused">Paused</option>
+            <option value="inactive">Inactive</option>
+            <option value="removed">Removed</option>
+          </select>
+        </div>
+
+        <div>
+          <label
+            htmlFor="memberRole"
+            className="mb-1 block text-sm font-medium text-stone-800"
+          >
+            Role
+          </label>
+          <select
+            id="memberRole"
+            value={role}
+            onChange={(e) => setRole(e.target.value as MemberRole)}
+            className={inputClass}
+          >
+            <option value="member">Member</option>
+            <option value="pastor">Pastor</option>
+            <option value="deacon">Deacon</option>
+            <option value="elder">Elder</option>
+            <option value="leader">Leader</option>
+            <option value="volunteer">Volunteer</option>
+            <option value="visitor">Visitor</option>
           </select>
         </div>
 

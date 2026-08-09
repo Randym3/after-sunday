@@ -48,6 +48,7 @@ def create_member(
         email=email,
         phone=payload.phone.strip() if payload.phone else None,
         status=payload.status,
+        role=payload.role,
         notes=payload.notes,
     )
     db.add(member)

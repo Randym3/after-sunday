@@ -30,6 +30,12 @@ class Member(Base):
         default="active",
         server_default="active",
     )
+    role: Mapped[str] = mapped_column(
+        String(20),
+        nullable=False,
+        default="member",
+        server_default="member",
+    )
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     created_at: Mapped[datetime] = mapped_column(

@@ -16,10 +16,31 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FilterToggle } from "@/components/ui/FilterMenu";
+import { FilterSidebar } from "@/components/ui/FilterMenu";
+import type { FilterColumn } from "@/components/ui/FilterMenu";
+import { FilterPills } from "@/components/ui/FilterPills";
+import { RowActions } from "@/components/ui/RowActions";
 
 // ---------------------------------------------------------------------------
 // helpers
 // ---------------------------------------------------------------------------
+
+function statusBadge(status: string) {
+  if (status === "active") {
+    return <Badge variant="success">Active</Badge>;
+  }
+
+  if (status === "removed") {
+    return <Badge variant="danger">Removed</Badge>;
+  }
+
+  if (status === "inactive") {
+    return <Badge variant="neutral">Inactive</Badge>;
+  }
+
+  return <Badge variant="neutral">Paused</Badge>;
+}
 
 function apiErrorToMessage(err: unknown): string {
   if (err instanceof ApiError && err.status === 401)
@@ -32,7 +53,13 @@ function apiErrorToMessage(err: unknown): string {
 // sort
 // ---------------------------------------------------------------------------
 
-type SortKey = "firstName" | "lastName" | "email" | "phone" | "status";
+type SortKey =
+  | "firstName"
+  | "lastName"
+  | "email"
+  | "phone"
+  | "status"
+  | "role";
 
 interface SortState {
   key: SortKey;
@@ -49,7 +76,40 @@ const COLUMNS: ColumnDef[] = [
   { key: "lastName", label: "Last" },
   { key: "email", label: "Email" },
   { key: "phone", label: "Phone" },
+  { key: "role", label: "Role" },
   { key: "status", label: "Status" },
+];
+
+const FILTER_COLUMNS: FilterColumn[] = [
+  { key: "firstName", label: "First", type: "entity" },
+  { key: "lastName", label: "Last", type: "entity" },
+  { key: "email", label: "Email", type: "entity" },
+  { key: "phone", label: "Phone", type: "text" },
+  {
+    key: "role",
+    label: "Role",
+    type: "status",
+    values: [
+      { value: "member", label: "Member" },
+      { value: "pastor", label: "Pastor" },
+      { value: "deacon", label: "Deacon" },
+      { value: "elder", label: "Elder" },
+      { value: "leader", label: "Leader" },
+      { value: "volunteer", label: "Volunteer" },
+      { value: "visitor", label: "Visitor" },
+    ],
+  },
+  {
+    key: "status",
+    label: "Status",
+    type: "status",
+    values: [
+      { value: "active", label: "Active" },
+      { value: "paused", label: "Paused" },
+      { value: "inactive", label: "Inactive" },
+      { value: "removed", label: "Removed" },
+    ],
+  },
 ];
 
 function SortArrow({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
@@ -76,6 +136,16 @@ function sortMembers(members: Member[], sort: SortState): Member[] {
   });
 }
 
+function filterMembers(members: Member[], filters: Record<string, string>): Member[] {
+  return members.filter((member) =>
+    Object.entries(filters).every(([key, value]) => {
+      if (!value) return true;
+      const itemValue: string = String(member[key as keyof Member] ?? "");
+      return itemValue.toLowerCase().includes(value.toLowerCase());
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // component
 // ---------------------------------------------------------------------------
@@ -84,6 +154,12 @@ export function MemberList() {
   const [members, setMembers] = useState<Member[] | null>(null);
   const [error, setError] = useState("");
   const [sort, setSort] = useState<SortState>({ key: "lastName", dir: "asc" });
+  const [filters, setFilters] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    FILTER_COLUMNS.forEach((col) => (init[col.key] = ""));
+    return init;
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showForm, setShowForm] = useState(false);
   const [editingMember, setEditingMember] = useState<Member | null>(null);
 
@@ -149,9 +225,33 @@ export function MemberList() {
     setEditingMember(null);
   }
 
+  const entityValues = useMemo((): Record<string, string[]> => {
+    if (!members) return {};
+    const out: Record<string, string[]> = {};
+    FILTER_COLUMNS.forEach((col) => {
+      if (col.type !== "entity") return;
+      const uniq = new Set(
+        members
+          .map((m) => String(m[col.key as keyof Member] ?? ""))
+          .filter((v) => v.length > 0),
+      );
+      out[col.key] = [...uniq].sort();
+    });
+    return out;
+  }, [members]);
+
+  const filteredCount = useMemo(
+    () => Object.values(filters).filter(Boolean).length,
+    [filters],
+  );
+
   const sorted = useMemo(
-    () => (members ? sortMembers(members, sort) : null),
-    [members, sort],
+    () => {
+      if (!members) return null;
+      const filtered = filterMembers(members, filters);
+      return sortMembers(filtered, sort);
+    },
+    [members, filters, sort],
   );
 
   // ---- states ----
@@ -196,6 +296,35 @@ export function MemberList() {
   }
 
   if (sorted.length === 0) {
+    if (filteredCount > 0) {
+      return (
+        <div className="space-y-3">
+          <FilterToggle
+            open={sidebarOpen}
+            count={filteredCount}
+            onToggle={() => setSidebarOpen((prev) => !prev)}
+          />
+
+          <EmptyState
+            title="No results match your filters"
+            description="Try adjusting the filters or clear them to see all members."
+            action={
+              <Button
+                type="button"
+                onClick={() => setFilters((prev) => {
+                  const cleared: Record<string, string> = {};
+                  Object.keys(prev).forEach((k) => (cleared[k] = ""));
+                  return cleared;
+                })}
+              >
+                Clear filters
+              </Button>
+            }
+          />
+        </div>
+      );
+    }
+
     return (
       <EmptyState
         title="No members yet"
@@ -212,17 +341,33 @@ export function MemberList() {
   // ---- table ----
 
   return (
-    <div className="space-y-4">
-      <div className="flex items-center justify-between">
-        <p className="text-sm text-stone-600">
-          {sorted.length} {sorted.length === 1 ? "member" : "members"}
-        </p>
-        <Button type="button" onClick={openAddForm}>
-          Add Member
-        </Button>
-      </div>
+    <div className="flex gap-4">
+      <div className="min-w-0 flex-1 space-y-3">
+        <FilterPills
+          columns={FILTER_COLUMNS}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
 
-      <Card className="overflow-hidden p-0">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <FilterToggle
+              open={sidebarOpen}
+              count={filteredCount}
+              onToggle={() => setSidebarOpen((prev) => !prev)}
+            />
+
+            <p className="text-sm text-stone-600">
+              {sorted.length} {sorted.length === 1 ? "member" : "members"}
+            </p>
+          </div>
+
+          <Button type="button" onClick={openAddForm}>
+            Add Member
+          </Button>
+        </div>
+
+        <Card className="overflow-hidden p-0">
         <table className="w-full text-left text-sm">
           <thead className="border-b border-stone-200 bg-stone-50">
             <tr>
@@ -271,70 +416,39 @@ export function MemberList() {
                 </td>
 
                 <td className="px-5 py-3">
-                  <Badge
-                    variant={member.status === "active" ? "success" : "neutral"}
-                  >
-                    {member.status === "active" ? "Active" : "Paused"}
+                  <Badge variant="neutral">
+                    {member.role
+                      ? member.role.charAt(0).toUpperCase() +
+                        member.role.slice(1)
+                      : "Member"}
                   </Badge>
                 </td>
 
-                <td className="px-5 py-3">
-                  <div className="flex items-center justify-end gap-3">
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-[#012f11] transition hover:text-[#073f19]"
-                      onClick={() => openEditForm(member)}
-                      aria-label={`Edit ${member.firstName} ${member.lastName}`}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                        <path d="m15 5 4 4" />
-                      </svg>
-                    </button>
+                <td className="px-5 py-3">{statusBadge(member.status)}</td>
 
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-1 text-red-600 transition hover:text-red-700"
-                      onClick={() => handleDelete(member)}
-                      aria-label={`Delete ${member.firstName} ${member.lastName}`}
-                    >
-                      <svg
-                        xmlns="http://www.w3.org/2000/svg"
-                        width="16"
-                        height="16"
-                        viewBox="0 0 24 24"
-                        fill="none"
-                        stroke="currentColor"
-                        strokeWidth="2"
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        aria-hidden="true"
-                      >
-                        <path d="M3 6h18" />
-                        <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                        <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                        <line x1="10" x2="10" y1="11" y2="17" />
-                        <line x1="14" x2="14" y1="11" y2="17" />
-                      </svg>
-                    </button>
-                  </div>
+                <td className="px-5 py-3">
+                  <RowActions
+                    onEdit={() => openEditForm(member)}
+                    onDelete={() => handleDelete(member)}
+                    editLabel={`Edit ${member.firstName} ${member.lastName}`}
+                    deleteLabel={`Delete ${member.firstName} ${member.lastName}`}
+                  />
                 </td>
               </tr>
             ))}
           </tbody>
         </table>
-      </Card>
+        </Card>
+      </div>
+
+      {sidebarOpen && (
+        <FilterSidebar
+          columns={FILTER_COLUMNS}
+          filters={filters}
+          onFiltersChange={setFilters}
+          entityValues={entityValues}
+        />
+      )}
     </div>
   );
 }

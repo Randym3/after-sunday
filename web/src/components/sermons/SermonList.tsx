@@ -11,6 +11,11 @@ import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { EmptyState } from "@/components/ui/EmptyState";
+import { FilterToggle } from "@/components/ui/FilterMenu";
+import { FilterSidebar } from "@/components/ui/FilterMenu";
+import type { FilterColumn } from "@/components/ui/FilterMenu";
+import { FilterPills } from "@/components/ui/FilterPills";
+import { RowActions } from "@/components/ui/RowActions";
 
 // ---------------------------------------------------------------------------
 // helpers
@@ -81,6 +86,35 @@ const COLUMNS: ColumnDef[] = [
   { key: "aiDraftStatus", label: "Draft" },
 ];
 
+const FILTER_COLUMNS: FilterColumn[] = [
+  { key: "title", label: "Title", type: "entity" },
+  { key: "preacher", label: "Preacher", type: "entity" },
+  { key: "scriptureReference", label: "Scripture", type: "entity" },
+  {
+    key: "transcriptStatus",
+    label: "Transcript",
+    type: "status",
+    values: [
+      { value: "ready", label: "Ready" },
+      { value: "processing", label: "Transcribing" },
+      { value: "queued", label: "Queued" },
+      { value: "failed", label: "Failed" },
+      { value: "not_started", label: "None" },
+    ],
+  },
+  {
+    key: "aiDraftStatus",
+    label: "Draft",
+    type: "status",
+    values: [
+      { value: "approved", label: "Approved" },
+      { value: "draft_ready", label: "Needs review" },
+      { value: "generating", label: "Generating" },
+      { value: "not_started", label: "None" },
+    ],
+  },
+];
+
 function SortArrow({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
   return (
     <span
@@ -105,6 +139,16 @@ function sortSermons(sermons: Sermon[], sort: SortState): Sermon[] {
   });
 }
 
+function filterSermons(sermons: Sermon[], filters: Record<string, string>): Sermon[] {
+  return sermons.filter((sermon) =>
+    Object.entries(filters).every(([key, value]) => {
+      if (!value) return true;
+      const itemValue: string = String(sermon[key as keyof Sermon] ?? "");
+      return itemValue.toLowerCase().includes(value.toLowerCase());
+    }),
+  );
+}
+
 // ---------------------------------------------------------------------------
 // component
 // ---------------------------------------------------------------------------
@@ -113,6 +157,12 @@ export function SermonList() {
   const [sermons, setSermons] = useState<Sermon[] | null>(null);
   const [error, setError] = useState("");
   const [sort, setSort] = useState<SortState>({ key: "preachedAt", dir: "desc" });
+  const [filters, setFilters] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    FILTER_COLUMNS.forEach((col) => (init[col.key] = ""));
+    return init;
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
 
   useEffect(() => {
     listSermons()
@@ -140,9 +190,33 @@ export function SermonList() {
     [],
   );
 
+  const entityValues = useMemo((): Record<string, string[]> => {
+    if (!sermons) return {};
+    const out: Record<string, string[]> = {};
+    FILTER_COLUMNS.forEach((col) => {
+      if (col.type !== "entity") return;
+      const uniq = new Set(
+        sermons
+          .map((s) => String(s[col.key as keyof Sermon] ?? ""))
+          .filter((v) => v.length > 0),
+      );
+      out[col.key] = [...uniq].sort();
+    });
+    return out;
+  }, [sermons]);
+
+  const filteredCount = useMemo(
+    () => Object.values(filters).filter(Boolean).length,
+    [filters],
+  );
+
   const sorted = useMemo(
-    () => (sermons ? sortSermons(sermons, sort) : null),
-    [sermons, sort],
+    () => {
+      if (!sermons) return null;
+      const filtered = filterSermons(sermons, filters);
+      return sortSermons(filtered, sort);
+    },
+    [sermons, filters, sort],
   );
 
   // ---- states ----
@@ -170,6 +244,35 @@ export function SermonList() {
   }
 
   if (sorted.length === 0) {
+    if (filteredCount > 0) {
+      return (
+        <div className="space-y-3">
+          <FilterToggle
+            open={sidebarOpen}
+            count={filteredCount}
+            onToggle={() => setSidebarOpen((prev) => !prev)}
+          />
+
+          <EmptyState
+            title="No results match your filters"
+            description="Try adjusting the filters or clear them to see all sermons."
+            action={
+              <Button
+                type="button"
+                onClick={() => setFilters((prev) => {
+                  const cleared: Record<string, string> = {};
+                  Object.keys(prev).forEach((k) => (cleared[k] = ""));
+                  return cleared;
+                })}
+              >
+                Clear filters
+              </Button>
+            }
+          />
+        </div>
+      );
+    }
+
     return (
       <EmptyState
         title="No sermons yet"
@@ -186,7 +289,21 @@ export function SermonList() {
   // ---- table ----
 
   return (
-    <Card className="overflow-hidden p-0">
+    <div className="flex gap-4">
+      <div className="min-w-0 flex-1 space-y-3">
+        <FilterPills
+          columns={FILTER_COLUMNS}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
+
+        <FilterToggle
+          open={sidebarOpen}
+          count={filteredCount}
+          onToggle={() => setSidebarOpen((prev) => !prev)}
+        />
+
+        <Card className="overflow-hidden p-0">
       <table className="w-full text-left text-sm">
         <thead className="border-b border-stone-200 bg-stone-50">
           <tr>
@@ -243,63 +360,29 @@ export function SermonList() {
 
               <td className="px-5 py-3">{transcriptBadge(sermon.transcriptStatus)}</td>
 
-              <td className="px-5 py-3">{draftBadge(sermon.aiDraftStatus)}</td>
-
-              <td className="px-5 py-3">
-                <div className="flex items-center justify-end gap-3">
-                  <Link
-                    href={`/app/sermons/${sermon.id}`}
-                    className="inline-flex items-center gap-1 text-[#012f11] transition hover:text-[#073f19]"
-                    aria-label={`Edit ${sermon.title || "sermon"}`}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M17 3a2.828 2.828 0 1 1 4 4L7.5 20.5 2 22l1.5-5.5Z" />
-                      <path d="m15 5 4 4" />
-                    </svg>
-                  </Link>
-
-                  <button
-                    type="button"
-                    className="inline-flex items-center gap-1 text-red-600 transition hover:text-red-700"
-                    onClick={() => handleDelete(sermon)}
-                    aria-label={`Delete ${sermon.title || "sermon"}`}
-                  >
-                    <svg
-                      xmlns="http://www.w3.org/2000/svg"
-                      width="16"
-                      height="16"
-                      viewBox="0 0 24 24"
-                      fill="none"
-                      stroke="currentColor"
-                      strokeWidth="2"
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      aria-hidden="true"
-                    >
-                      <path d="M3 6h18" />
-                      <path d="M19 6v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6" />
-                      <path d="M8 6V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2" />
-                      <line x1="10" x2="10" y1="11" y2="17" />
-                      <line x1="14" x2="14" y1="11" y2="17" />
-                    </svg>
-                  </button>
-                </div>
+              <td className="px-5 py-3">{draftBadge(sermon.aiDraftStatus)}</td>              <td className="px-5 py-3">
+                <RowActions
+                  editHref={`/app/sermons/${sermon.id}`}
+                  onDelete={() => handleDelete(sermon)}
+                  editLabel={`Edit ${sermon.title || "sermon"}`}
+                  deleteLabel={`Delete ${sermon.title || "sermon"}`}
+                />
               </td>
             </tr>
           ))}
         </tbody>
       </table>
-    </Card>
+        </Card>
+      </div>
+
+      {sidebarOpen && (
+        <FilterSidebar
+          columns={FILTER_COLUMNS}
+          filters={filters}
+          onFiltersChange={setFilters}
+          entityValues={entityValues}
+        />
+      )}
+    </div>
   );
 }
