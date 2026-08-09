@@ -18,12 +18,6 @@ export function SearchableSelect({
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState(value);
   const containerRef = useRef<HTMLDivElement>(null);
-  const closeRef = useRef(setOpen);
-
-  // keep the close callback fresh without re-binding the outside-click handler
-  useEffect(() => {
-    closeRef.current = setOpen;
-  });
 
   const filtered = query
     ? options.filter((o) =>
@@ -37,7 +31,7 @@ export function SearchableSelect({
     function onPointerDown(e: PointerEvent) {
       const target = e.target as Node | null;
       if (containerRef.current && !containerRef.current.contains(target)) {
-        closeRef.current(false);
+        setOpen(false);
       }
     }
     document.addEventListener("pointerdown", onPointerDown);

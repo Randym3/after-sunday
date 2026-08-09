@@ -5,7 +5,7 @@ interface RowActionsProps {
   editHref?: string;
   /** Renders Edit as a button when provided (takes precedence over editHref). */
   onEdit?: () => void;
-  onDelete: () => void;
+  onDelete?: () => void;
   editLabel: string;
   deleteLabel: string;
 }
@@ -83,14 +83,16 @@ export function RowActions({
         </Link>
       ) : null}
 
-      <button
-        type="button"
-        className={deleteIconClass}
-        onClick={onDelete}
-        aria-label={deleteLabel}
-      >
-        <TrashIcon />
-      </button>
+      {onDelete ? (
+        <button
+          type="button"
+          className={deleteIconClass}
+          onClick={onDelete}
+          aria-label={deleteLabel}
+        >
+          <TrashIcon />
+        </button>
+      ) : null}
     </div>
   );
 }

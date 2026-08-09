@@ -1,0 +1,399 @@
+"use client";
+
+import { ReactNode, useCallback, useEffect, useMemo, useState } from "react";
+
+import { ApiError } from "@/lib/api/client";
+
+import { Button } from "@/components/ui/Button";
+import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
+import { EmptyState } from "@/components/ui/EmptyState";
+import { FilterPills } from "@/components/ui/FilterPills";
+import { FilterSidebar, FilterToggle } from "@/components/ui/FilterMenu";
+import type { FilterColumn } from "@/components/ui/FilterMenu";
+import { RowActions } from "@/components/ui/RowActions";
+
+// ---------------------------------------------------------------------------
+// types
+// ---------------------------------------------------------------------------
+
+export interface DataTableColumn<T> {
+  key: string;
+  label: string;
+  render?: (row: T) => ReactNode;
+}
+
+interface SortState {
+  key: string;
+  dir: "asc" | "desc";
+}
+
+interface DataTableProps<T> {
+  columns: DataTableColumn<T>[];
+  filterColumns: FilterColumn[];
+  fetchRows: () => Promise<T[]>;
+  getRowId: (row: T) => string;
+  defaultSort: SortState;
+
+  /** Renders an edit icon linking here. Omit to hide the edit icon. */
+  editHref?: (row: T) => string;
+  /** Renders the delete icon + confirm dialog. Omit to hide delete. */
+  onDelete?: (row: T) => Promise<void>;
+  deleteConfirmTitle?: (row: T) => string;
+  deleteConfirmDescription?: (row: T) => string;
+
+  errorMessage?: string;
+  emptyTitle: string;
+  emptyDescription: string;
+  emptyAction?: ReactNode;
+
+  /** Extra controls above the table (e.g. Add Member + count). Receives the visible row count. */
+  renderToolbar?: (count: number) => ReactNode;
+
+  /** Bump this to force a refetch (e.g. after creating a row elsewhere). */
+  reloadSignal?: number;
+}
+
+function apiErrorToMessage(err: unknown, fallback: string): string {
+  if (err instanceof ApiError && err.status === 401)
+    return "Your session has expired. Please log out and in again.";
+  if (err instanceof Error) return err.message;
+  return fallback;
+}
+
+// ---------------------------------------------------------------------------
+// helpers
+// ---------------------------------------------------------------------------
+
+function SortArrow({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
+  return (
+    <span
+      aria-hidden
+      className={`ml-1 inline-block w-2.5 text-center text-[10px] ${
+        active ? "text-[#012f11]" : "opacity-0"
+      }`}
+    >
+      {dir === "asc" ? "\u25B2" : "\u25BC"}
+    </span>
+  );
+}
+
+function sortRows<T>(rows: T[], sort: SortState): T[] {
+  const dir = sort.dir === "asc" ? 1 : -1;
+  return [...rows].sort((a, b) => {
+    const av: string = String((a as Record<string, unknown>)[sort.key] ?? "");
+    const bv: string = String((b as Record<string, unknown>)[sort.key] ?? "");
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+}
+
+function filterRows<T>(
+  rows: T[],
+  filters: Record<string, string>,
+): T[] {
+  return rows.filter((row) =>
+    Object.entries(filters).every(([key, value]) => {
+      if (!value) return true;
+      const itemValue: string = String(
+        (row as Record<string, unknown>)[key] ?? "",
+      );
+      return itemValue.toLowerCase().includes(value.toLowerCase());
+    }),
+  );
+}
+
+// ---------------------------------------------------------------------------
+// component
+// ---------------------------------------------------------------------------
+
+export function DataTable<T>({
+  columns,
+  filterColumns,
+  fetchRows,
+  getRowId,
+  defaultSort,
+  editHref,
+  onDelete,
+  deleteConfirmTitle,
+  deleteConfirmDescription,
+  errorMessage = "Could not load items.",
+  emptyTitle,
+  emptyDescription,
+  emptyAction,
+  renderToolbar,
+  reloadSignal = 0,
+}: DataTableProps<T>) {
+  const [rows, setRows] = useState<T[] | null>(null);
+  const [error, setError] = useState("");
+  const [sort, setSort] = useState<SortState>(defaultSort);
+  const [filters, setFilters] = useState<Record<string, string>>(() => {
+    const init: Record<string, string> = {};
+    filterColumns.forEach((col) => (init[col.key] = ""));
+    return init;
+  });
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [pendingDelete, setPendingDelete] = useState<T | null>(null);
+  const [retrySignal, setRetrySignal] = useState(0);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    fetchRows()
+      .then((data) => {
+        if (!cancelled) {
+          setRows(data);
+          setError("");
+        }
+      })
+      .catch((err: unknown) => {
+        if (!cancelled) {
+          setError(apiErrorToMessage(err, errorMessage));
+          setRows(null);
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [fetchRows, reloadSignal, retrySignal, errorMessage]);
+
+  const handleSort = useCallback((key: string) => {
+    setSort((prev) =>
+      prev.key === key
+        ? { key, dir: prev.dir === "asc" ? "desc" : "asc" }
+        : { key, dir: "asc" },
+    );
+  }, []);
+
+  const entityValues = useMemo((): Record<string, string[]> => {
+    if (!rows) return {};
+    const out: Record<string, string[]> = {};
+    filterColumns.forEach((col) => {
+      if (col.type !== "entity") return;
+      const uniq = new Set(
+        rows
+          .map((r) => String((r as Record<string, unknown>)[col.key] ?? ""))
+          .filter((v) => v.length > 0),
+      );
+      out[col.key] = [...uniq].sort();
+    });
+    return out;
+  }, [rows, filterColumns]);
+
+  const filteredCount = useMemo(
+    () => Object.values(filters).filter(Boolean).length,
+    [filters],
+  );
+
+  const sorted = useMemo(() => {
+    if (!rows) return null;
+    return sortRows(filterRows(rows, filters), sort);
+  }, [rows, filters, sort]);
+
+  const handleDelete = useCallback(
+    async (row: T) => {
+      if (!onDelete) return;
+      await onDelete(row);
+      setPendingDelete(null);
+      setRows((prev) =>
+        prev ? prev.filter((r) => getRowId(r) !== getRowId(row)) : prev,
+      );
+    },
+    [onDelete, getRowId],
+  );
+
+  // ---- states ----
+
+  if (error) {
+    return (
+      <EmptyState
+        title="Unable to load data"
+        description={error}
+        action={
+          <Button
+            type="button"
+            onClick={() => setRetrySignal((s) => s + 1)}
+          >
+            Try again
+          </Button>
+        }
+      />
+    );
+  }
+
+  if (sorted === null) {
+    return (
+      <Card>
+        <p className="py-8 text-center text-sm text-stone-500">
+          Loading…
+        </p>
+      </Card>
+    );
+  }
+
+  if (sorted.length === 0) {
+    if (filteredCount > 0) {
+      return (
+        <div className="space-y-3">
+          <FilterToggle
+            open={sidebarOpen}
+            count={filteredCount}
+            onToggle={() => setSidebarOpen((prev) => !prev)}
+          />
+
+          <EmptyState
+            title="No results match your filters"
+            description="Try adjusting the filters or clear them to see all items."
+            action={
+              <Button
+                type="button"
+                onClick={() =>
+                  setFilters((prev) => {
+                    const cleared: Record<string, string> = {};
+                    Object.keys(prev).forEach((k) => (cleared[k] = ""));
+                    return cleared;
+                  })
+                }
+              >
+                Clear filters
+              </Button>
+            }
+          />
+        </div>
+      );
+    }
+
+    return (
+      <EmptyState
+        title={emptyTitle}
+        description={emptyDescription}
+        action={emptyAction}
+      />
+    );
+  }
+
+  // ---- table ----
+
+  return (
+    <div className="flex gap-4">
+      <div className="min-w-0 flex-1 space-y-3">
+        <FilterPills
+          columns={filterColumns}
+          filters={filters}
+          onFiltersChange={setFilters}
+        />
+
+        <div className="flex items-center justify-between gap-3">
+          <FilterToggle
+            open={sidebarOpen}
+            count={filteredCount}
+            onToggle={() => setSidebarOpen((prev) => !prev)}
+          />
+
+          {renderToolbar ? (
+            <div>{renderToolbar(sorted.length)}</div>
+          ) : null}
+        </div>
+
+        <Card className="overflow-hidden p-0">
+          <table className="w-full text-left text-sm">
+            <thead className="border-b border-stone-200 bg-stone-50">
+              <tr>
+                {columns.map((col) => (
+                  <th
+                    key={col.key}
+                    scope="col"
+                    className="cursor-pointer select-none px-5 py-3 text-xs font-semibold uppercase tracking-wide text-stone-500 transition hover:text-[#102015]"
+                    onClick={() => handleSort(col.key)}
+                  >
+                    {col.label}
+                    <SortArrow
+                      active={sort.key === col.key}
+                      dir={sort.key === col.key ? sort.dir : "desc"}
+                    />
+                  </th>
+                ))}
+
+                {editHref || onDelete ? (
+                  <th
+                    scope="col"
+                    className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500"
+                  >
+                    Actions
+                  </th>
+                ) : null}
+              </tr>
+            </thead>
+
+            <tbody>
+              {sorted.map((row) => {
+                const id = getRowId(row);
+
+                return (
+                  <tr
+                    key={id}
+                    className="border-b border-stone-100 transition hover:bg-stone-100"
+                  >
+                    {columns.map((col) => (
+                      <td
+                        key={col.key}
+                        className="px-5 py-3 text-stone-600"
+                      >
+                        {col.render ? col.render(row) : null}
+                      </td>
+                    ))}
+
+                    {editHref || onDelete ? (
+                      <td className="px-5 py-3">
+                        <RowActions
+                          editHref={editHref ? editHref(row) : undefined}
+                          onDelete={
+                            onDelete ? () => setPendingDelete(row) : undefined
+                          }
+                          editLabel="Edit"
+                          deleteLabel="Delete"
+                        />
+                      </td>
+                    ) : null}
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </Card>
+      </div>
+
+      {sidebarOpen && (
+        <FilterSidebar
+          columns={filterColumns}
+          filters={filters}
+          onFiltersChange={setFilters}
+          entityValues={entityValues}
+        />
+      )}
+
+      {onDelete ? (
+        <ConfirmDialog
+          open={pendingDelete !== null}
+          title={
+            pendingDelete
+              ? deleteConfirmTitle?.(pendingDelete) ?? "Delete item?"
+              : "Delete item?"
+          }
+          description={
+            pendingDelete
+              ? deleteConfirmDescription?.(pendingDelete) ??
+                "This will be permanently deleted. This cannot be undone."
+              : "This will be permanently deleted. This cannot be undone."
+          }
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => {
+            if (pendingDelete) handleDelete(pendingDelete);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
