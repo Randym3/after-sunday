@@ -12,11 +12,9 @@ from app.schemas.sermon import SermonCreate, SermonRead, SermonUpdate, Transcrip
 router = APIRouter(prefix="/sermons", tags=["sermons"])
 
 
-def _get_owned_sermon(
-    db: Session, sermon_id: uuid.UUID, user_id: uuid.UUID
-) -> Sermon:
+def _get_sermon_or_404(db: Session, sermon_id: uuid.UUID) -> Sermon:
     sermon = db.get(Sermon, sermon_id)
-    if sermon is None or sermon.created_by_user_id != user_id:
+    if sermon is None:
         raise HTTPException(status_code=404, detail="Sermon not found")
     return sermon
 
@@ -49,12 +47,10 @@ def create_sermon(
 @router.get("", response_model=list[SermonRead])
 def list_sermons(
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_uuid),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
 ):
     return db.scalars(
-        select(Sermon)
-        .where(Sermon.created_by_user_id == user_id)
-        .order_by(Sermon.created_at.desc())
+        select(Sermon).order_by(Sermon.created_at.desc())
     ).all()
 
 
@@ -62,9 +58,9 @@ def list_sermons(
 def get_sermon(
     sermon_id: uuid.UUID,
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_uuid),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
 ):
-    return _get_owned_sermon(db, sermon_id, user_id)
+    return _get_sermon_or_404(db, sermon_id)
 
 
 @router.patch("/{sermon_id}", response_model=SermonRead)
@@ -72,9 +68,9 @@ def update_sermon(
     sermon_id: uuid.UUID,
     payload: SermonUpdate,
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_uuid),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
 ):
-    sermon = _get_owned_sermon(db, sermon_id, user_id)
+    sermon = _get_sermon_or_404(db, sermon_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(sermon, field, value)
     db.commit()
@@ -87,9 +83,9 @@ def update_transcript(
     sermon_id: uuid.UUID,
     payload: TranscriptUpdate,
     db: Session = Depends(get_db),
-    user_id: uuid.UUID = Depends(get_current_user_uuid),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
 ):
-    sermon = _get_owned_sermon(db, sermon_id, user_id)
+    sermon = _get_sermon_or_404(db, sermon_id)
     sermon.transcript = payload.transcript
     if payload.transcript.strip():
         sermon.transcript_status = "ready"

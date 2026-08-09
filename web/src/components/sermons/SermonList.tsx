@@ -58,41 +58,27 @@ function draftBadge(status: string) {
   return <Badge variant="neutral">Not generated</Badge>;
 }
 
+function apiErrorToMessage(err: unknown): string {
+  if (err instanceof ApiError && err.status === 401) {
+    return "Your session has expired. Please log out and in again.";
+  }
+
+  if (err instanceof Error) {
+    return err.message;
+  }
+
+  return "Could not load sermons.";
+}
+
 export function SermonList() {
   const [sermons, setSermons] = useState<Sermon[] | null>(null);
   const [error, setError] = useState("");
-
-  function handleRetry() {
-    setSermons(null);
-    setError("");
-
-    listSermons()
-      .then(setSermons)
-      .catch((err: unknown) => {
-        const message =
-          err instanceof ApiError && err.status === 401
-            ? "Your session has expired. Please log out and in again."
-            : err instanceof Error
-              ? err.message
-              : "Could not load sermons.";
-
-        setError(message);
-        setSermons(null);
-      });
-  }
 
   useEffect(() => {
     listSermons()
       .then(setSermons)
       .catch((err: unknown) => {
-        const message =
-          err instanceof ApiError && err.status === 401
-            ? "Your session has expired. Please log out and in again."
-            : err instanceof Error
-              ? err.message
-              : "Could not load sermons.";
-
-        setError(message);
+        setError(apiErrorToMessage(err));
         setSermons(null);
       });
   }, []);
@@ -103,7 +89,7 @@ export function SermonList() {
         title="Unable to load sermons"
         description={error}
         action={
-          <Button type="button" onClick={handleRetry}>
+          <Button type="button" onClick={() => window.location.reload()}>
             Try again
           </Button>
         }
