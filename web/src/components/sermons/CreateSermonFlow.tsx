@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 
 import { SermonForm } from "@/components/sermons/SermonForm";
+import { createSermon } from "@/lib/api/sermons";
 import {
   CreateSermonInput,
   Sermon,
@@ -11,6 +12,12 @@ import {
 
 const SERMON_STORAGE_KEY = "after-sunday:demo-sermon";
 
+function errorMessage(error: unknown) {
+  return error instanceof Error
+    ? error.message
+    : "Something went wrong. Please try again.";
+}
+
 export function CreateSermonFlow() {
   const router = useRouter();
 
@@ -18,6 +25,18 @@ export function CreateSermonFlow() {
     values: CreateSermonInput,
     mediaFile: File | null
   ) {
+    // Pasted-transcript sermons persist for real via the API.
+    if (values.sourceType === "transcript") {
+      try {
+        const sermon = await createSermon(values);
+        router.push(`/app/sermons/${sermon.id}`);
+      } catch (error) {
+        alert(errorMessage(error));
+      }
+      return;
+    }
+
+    // Upload and YouTube sources stay mocked until the media slice.
     const hasTranscript = Boolean(values.transcript?.trim());
 
     let transcriptStatus: TranscriptionStatus;
@@ -52,8 +71,8 @@ export function CreateSermonFlow() {
       transcript: values.transcript?.trim() || null,
       transcriptStatus,
 
-    followUpSubject: null,
-    followUpBody: null,
+      followUpSubject: null,
+      followUpBody: null,
       aiDraftStatus: "not_started",
       emailStatus: "not_started",
     };

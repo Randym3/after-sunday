@@ -1,5 +1,7 @@
 # After Sunday — First Backend Slice
 
+> **Status: implemented 2026-08-08.** The slice is live against a local Docker Postgres (host port 5433; a native Postgres 17 already occupies 5432). API verified end-to-end via TestClient against the real database (17/17 checks) plus curl (401 without token, CORS preflight, health). Frontend lint and build pass. Remaining before declaring the milestone fully done: an in-browser check of the stop condition below with a real Supabase session (create pasted-transcript sermon → refresh → still there → edit transcript → refresh → edit still there). Follow-up draft server persistence and the sermons list page wiring are intentionally not part of this slice.
+
 Use this after frontend stabilization.
 
 ## Objective

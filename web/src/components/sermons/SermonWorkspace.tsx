@@ -1,7 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
+
+import {
+  getSermon,
+  updateTranscript as updateTranscriptApi,
+} from "@/lib/api/sermons";
 
 import { EmailPreview } from "@/components/sermons/EmailPreview";
 import { FollowUpEditor } from "@/components/sermons/FollowUpEditor";
@@ -212,11 +217,75 @@ function writeStoredSermon(sermon: Sermon) {
   notifySermonStoreChanged();
 }
 
+// Follow-up draft state is browser-local in this slice, so keep it when
+// refreshing from a server response.
+function mergeServerSermon(server: Sermon, local: Sermon): Sermon {
+  return {
+    ...server,
+    followUpSubject: local.followUpSubject,
+    followUpBody: local.followUpBody,
+    aiDraftStatus: local.aiDraftStatus,
+    emailStatus: local.emailStatus,
+  };
+}
+
 export function SermonWorkspace({
   sermonId,
 }: SermonWorkspaceProps) {
   const [transcriptMessage, setTranscriptMessage] = useState("");
   const [followUpMessage, setFollowUpMessage] = useState("");
+
+  // Real sermon ids are persisted via the API; "demo" is the mock path
+  // backed by the sessionStorage store.
+  const isPersistedSermon = sermonId !== "demo";
+
+  const [persistedSermon, setPersistedSermon] = useState<Sermon | null>(
+    null
+  );
+  const [persistedLoadState, setPersistedLoadState] = useState<
+    "loading" | "ready" | "error"
+  >(isPersistedSermon ? "loading" : "ready");
+  const [persistedLoadError, setPersistedLoadError] = useState("");
+
+  useEffect(() => {
+    if (!isPersistedSermon) {
+      return;
+    }
+
+    let cancelled = false;
+
+    getSermon(sermonId)
+      .then((serverSermon) => {
+        if (cancelled) {
+          return;
+        }
+        setPersistedSermon(serverSermon);
+        setPersistedLoadState("ready");
+      })
+      .catch((error: unknown) => {
+        if (cancelled) {
+          return;
+        }
+        setPersistedLoadError(
+          error instanceof Error
+            ? error.message
+            : "Unable to load this sermon."
+        );
+        setPersistedLoadState("error");
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [isPersistedSermon, sermonId]);
+
+  function commitSermon(next: Sermon) {
+    if (isPersistedSermon) {
+      setPersistedSermon(next);
+    } else {
+      writeStoredSermon(next);
+    }
+  }
 
   const storedSermon = useSyncExternalStore(
     subscribeToSermonStore,
@@ -224,18 +293,23 @@ export function SermonWorkspace({
     () => null // getServerSnapshot: no browser storage on the server
   );
 
-  const sermon: Sermon = storedSermon
-    ? {
+  const sermon: Sermon = isPersistedSermon
+    ? persistedSermon ?? {
         ...fallbackSermon,
-        ...storedSermon,
         id: sermonId,
-        followUpSubject: storedSermon.followUpSubject ?? null,
-        followUpBody: storedSermon.followUpBody ?? null,
       }
-    : {
-        ...fallbackSermon,
-        id: sermonId,
-      };
+    : storedSermon
+      ? {
+          ...fallbackSermon,
+          ...storedSermon,
+          id: sermonId,
+          followUpSubject: storedSermon.followUpSubject ?? null,
+          followUpBody: storedSermon.followUpBody ?? null,
+        }
+      : {
+          ...fallbackSermon,
+          id: sermonId,
+        };
 
   const trimmedTranscript = sermon.transcript?.trim() ?? "";
   const transcriptWordCount = trimmedTranscript
@@ -243,7 +317,7 @@ export function SermonWorkspace({
     : 0;
 
   function markTranscriptReady() {
-    writeStoredSermon({
+    commitSermon({
       ...sermon,
       transcript: sermon.transcript || demoTranscript,
       transcriptStatus: "ready",
@@ -255,7 +329,7 @@ export function SermonWorkspace({
   function updateTranscript(transcript: string) {
     const wasApproved = sermon.aiDraftStatus === "approved";
 
-    writeStoredSermon({
+    commitSermon({
       ...sermon,
       transcript,
       aiDraftStatus: wasApproved
@@ -269,7 +343,25 @@ export function SermonWorkspace({
     setTranscriptMessage("");
   }
 
-  function saveTranscript() {
+  async function saveTranscript() {
+    if (isPersistedSermon) {
+      try {
+        const serverSermon = await updateTranscriptApi(
+          sermonId,
+          sermon.transcript ?? ""
+        );
+        commitSermon(mergeServerSermon(serverSermon, sermon));
+        setTranscriptMessage("Transcript saved.");
+      } catch (error) {
+        setTranscriptMessage(
+          error instanceof Error
+            ? error.message
+            : "Could not save the transcript."
+        );
+      }
+      return;
+    }
+
     writeStoredSermon(sermon);
     setTranscriptMessage("Transcript saved.");
   }
@@ -282,7 +374,7 @@ export function SermonWorkspace({
       return;
     }
 
-    writeStoredSermon({
+    commitSermon({
       ...sermon,
       aiDraftStatus: "generating",
     });
@@ -295,7 +387,7 @@ export function SermonWorkspace({
 
     const draft = buildMockFollowUp(sermon);
 
-    writeStoredSermon({
+    commitSermon({
       ...sermon,
       followUpSubject: draft.subject,
       followUpBody: draft.body,
@@ -307,7 +399,7 @@ export function SermonWorkspace({
   function updateFollowUpSubject(subject: string) {
     const wasApproved = sermon.aiDraftStatus === "approved";
 
-    writeStoredSermon({
+    commitSermon({
       ...sermon,
       followUpSubject: subject,
       aiDraftStatus: wasApproved
@@ -324,7 +416,7 @@ export function SermonWorkspace({
   function updateFollowUpBody(body: string) {
     const wasApproved = sermon.aiDraftStatus === "approved";
 
-    writeStoredSermon({
+    commitSermon({
       ...sermon,
       followUpBody: body,
       aiDraftStatus: wasApproved
@@ -339,8 +431,12 @@ export function SermonWorkspace({
   }
 
   function saveFollowUp() {
-    writeStoredSermon(sermon);
-    setFollowUpMessage("Draft saved.");
+    commitSermon(sermon);
+    setFollowUpMessage(
+      isPersistedSermon
+        ? "Draft saved in this browser session."
+        : "Draft saved."
+    );
   }
 
   function approveFollowUp() {
@@ -351,7 +447,7 @@ export function SermonWorkspace({
       return;
     }
 
-    writeStoredSermon({
+    commitSermon({
       ...sermon,
       aiDraftStatus: "approved",
       emailStatus: "ready",
@@ -365,6 +461,38 @@ export function SermonWorkspace({
   const canGenerateFollowUp =
     sermon.transcriptStatus === "ready" &&
     Boolean(sermon.transcript?.trim());
+
+  if (isPersistedSermon && persistedLoadState === "loading") {
+    return (
+      <div className="py-20 text-center">
+        <p className="text-sm text-stone-600">Loading sermon…</p>
+      </div>
+    );
+  }
+
+  if (isPersistedSermon && persistedLoadState === "error") {
+    return (
+      <div className="space-y-6 py-10">
+        <Link
+          href="/app/sermons"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+        >
+          <span aria-hidden="true">←</span>
+          Back to sermons
+        </Link>
+
+        <div>
+          <h1 className="text-2xl font-semibold text-[#102015]">
+            Unable to load this sermon
+          </h1>
+
+          <p className="mt-2 text-sm leading-6 text-stone-600">
+            {persistedLoadError}
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="space-y-8">
@@ -423,7 +551,9 @@ export function SermonWorkspace({
               ? "Prototype only: the recording is not uploaded or saved. Only its filename is kept in this browser session."
               : sermon.sourceType === "youtube"
                 ? "Prototype only: no YouTube connection is made. Only the link is kept in this browser session."
-                : "This transcript is kept in this browser session only."}
+                : isPersistedSermon
+                  ? "Saved to the church database. Transcript edits persist when you save."
+                  : "Prototype only: this transcript is kept in this browser session only."}
           </p>
         </Card>
 

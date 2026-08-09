@@ -148,6 +148,8 @@ The actual media `File` is not stored. Only serializable metadata such as filena
 
 The flow redirects to `/app/sermons/demo`.
 
+**Pasted-transcript source is no longer mocked.** As of 2026-08-08 (backend slice, `08_BACKEND_FIRST_SLICE.md`), `CreateSermonFlow` `POST`s transcript-source sermons to FastAPI, gets back a real UUID, and redirects to `/app/sermons/<id>`. Upload and YouTube sources still take the `sessionStorage`/`demo` path above until the media slice.
+
 ## Sermon Workspace
 
 `web/src/components/sermons/SermonWorkspace.tsx` can display:
@@ -161,11 +163,15 @@ The flow redirects to `/app/sermons/demo`.
 - transcript status
 - transcript editor (with live word count)
 
-State management: the stored sermon in `sessionStorage` is the single source of truth. The workspace subscribes to it with `useSyncExternalStore` (no effect-driven load), and every edit writes through to storage immediately. The Save buttons confirm the current state rather than being the only way to persist.
+State management depends on the sermon id:
+
+- `sermonId === "demo"` (upload/YouTube mock): the stored sermon in `sessionStorage` is the single source of truth. The workspace subscribes to it with `useSyncExternalStore` (no effect-driven load), and every edit writes through to storage immediately. The Save buttons confirm the current state rather than being the only way to persist.
+- any other id (persisted sermon): the workspace loads it via `GET /sermons/{id}` on mount, and **Save Transcript** `PATCH`es `/sermons/{id}/transcript`. Follow-up draft/approval state is browser-local in this slice (mock AI generation is unchanged) and does not persist across reloads.
 
 Behavior notes:
 
-- If `sessionStorage` is empty (e.g., visiting any `/app/sermons/[id]` directly), the workspace renders a hardcoded `fallbackSermon` ("The Good Shepherd", Psalm 23, `sunday-sermon.mp4`, status `processing`).
+- If `sessionStorage` is empty and the id is `demo` (e.g., visiting `/app/sermons/demo` directly), the workspace renders a hardcoded `fallbackSermon` ("The Good Shepherd", Psalm 23, `sunday-sermon.mp4`, status `processing`).
+- A persisted id that does not exist or belongs to another user renders an "Unable to load this sermon" error state (the API returns 404).
 - For mocked non-ready transcripts, a **Mark Transcript Ready** button injects a demo transcript and sets status to `ready`. It is styled as a secondary button with a "Prototype action — simulates transcription finishing..." caption so it is not mistaken for a production action.
 - A **Back to sermons** link sits above the workspace header; the SermonForm **Cancel** button also returns to `/app/sermons`.
 - The source card explains persistence explicitly for each source type (e.g. "Prototype only: the recording is not uploaded or saved. Only its filename is kept in this browser session.").
@@ -186,20 +192,30 @@ Generate Follow-Up Draft
 
 The generated content is hardcoded/mock content (`buildMockFollowUp`). No AI API call occurs. The email preview (`EmailPreview.tsx`) replaces `{{ firstName }}` with "Jordan" for the member-facing preview.
 
-Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`. Because edits write through to `sessionStorage`, unsaved edits survive navigation within the tab.
+Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`. For the demo path, edits write through to `sessionStorage`, so unsaved edits survive navigation within the tab. For persisted sermons, the follow-up draft is held in component state only (mock generation; server persistence of drafts is a later step).
 
 ## Backend
 
-`api/app/main.py` is a bare FastAPI scaffold:
+As of 2026-08-08, the FastAPI app implements the sermon vertical slice (`08_BACKEND_FIRST_SLICE.md`):
 
 ```txt
-GET /         -> status ok
-GET /health   -> healthy
+GET    /                       -> status ok
+GET    /health                 -> healthy
+POST   /sermons                -> create sermon (201)
+GET    /sermons                -> list own sermons
+GET    /sermons/{id}           -> get one sermon
+PATCH  /sermons/{id}           -> partial update
+PATCH  /sermons/{id}/transcript -> save transcript edits
 ```
 
-There are no routers, models, migrations, or database connections. `web/src/lib/api/` is an empty directory (no frontend API client yet).
+- **Postgres**: local Docker container (`api/docker-compose.yml`, `postgres:16-alpine`) mapped to host port **5433** because a native Postgres 17 (EDB, launchd) already occupies 5432 on this machine. Named volume `after_sunday_pgdata`.
+- **Migrations**: Alembic (`api/alembic/`), first migration `0001_create_sermons` creates the `sermons` table with ownership columns (`created_by_user_id` NOT NULL, nullable `church_id`) and indexes.
+- **Auth**: every `/sermons` request requires `Authorization: Bearer <supabase access token>`; FastAPI resolves the user via Supabase's `GET /auth/v1/user` (no new dependency). Queries are scoped to the authenticated user; other users get 404.
+- **Models/schemas**: `api/app/models/sermon.py` (SQLAlchemy), `api/app/schemas/sermon.py` (Pydantic with camelCase aliases so the API speaks the frontend `Sermon` type).
+- **Frontend client**: `web/src/lib/api/client.ts` (fetch wrapper attaching the bearer token) and `web/src/lib/api/sermons.ts` (typed functions). `NEXT_PUBLIC_API_URL=http://localhost:8000` is already set.
+- **Config**: `api/.env` (gitignored) holds `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`; `api/.env.example` documents them.
 
-`api/requirements.txt` pre-installs alembic, SQLAlchemy, psycopg, openai, and resend, but no code uses them yet. `api/app.save` is a stray draft file.
+`api/requirements.txt` pre-installs alembic, SQLAlchemy, psycopg, openai, and resend. `api/app.save` is a stray draft file.
 
 ## Environment
 
@@ -211,18 +227,15 @@ There are no routers, models, migrations, or database connections. `web/src/lib/
 
 ## Still Mocked
 
-- sermon database persistence
-- media upload
-- object storage
+- media upload / object storage
 - transcription provider
 - asynchronous jobs
 - YouTube OAuth/channel integration
-- real AI generation
+- real AI generation (follow-up draft is generated in-browser and, for persisted sermons, is not yet saved server-side)
 - recipients/groups
 - campaign persistence
 - email sending
 - analytics
-- multi-tenant church/workspace implementation
-- all FastAPI endpoints beyond `/` and `/health`
+- multi-tenant church/workspace implementation (ownership exists per-user; `church_id` column is a nullable placeholder)
 
-Do not mistake frontend statuses for working backend behavior.
+Persisted sermons cover only the pasted-transcript source. Do not mistake frontend statuses for working backend behavior.

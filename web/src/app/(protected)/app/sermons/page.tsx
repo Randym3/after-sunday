@@ -1,6 +1,7 @@
 import Link from "next/link";
+
+import { SermonList } from "@/components/sermons/SermonList";
 import { Button } from "@/components/ui/Button";
-import { EmptyState } from "@/components/ui/EmptyState";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default function SermonsPage() {
@@ -16,15 +17,7 @@ export default function SermonsPage() {
         }
       />
 
-      <EmptyState
-        title="No sermons yet"
-        description="Create your first sermon follow-up by adding sermon details and pasting a transcript."
-        action={
-          <Link href="/app/sermons/new">
-            <Button>Create Sermon</Button>
-          </Link>
-        }
-      />
+      <SermonList />
     </>
   );
 }

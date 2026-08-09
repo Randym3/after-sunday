@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: after-sunday-db
+    environment:
+      POSTGRES_USER: after_sunday
+      POSTGRES_PASSWORD: after_sunday
+      POSTGRES_DB: after_sunday
+    # Host port 5433: a native Postgres 17 (EDB) already occupies 5432 on this machine.
+    ports:
+      - "5433:5432"
+    volumes:
+      - after_sunday_pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U after_sunday -d after_sunday"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+volumes:
+  after_sunday_pgdata:
