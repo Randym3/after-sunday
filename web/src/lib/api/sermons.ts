@@ -1,5 +1,12 @@
 import { apiFetch } from "@/lib/api/client";
-import type { CreateSermonInput, Sermon } from "@/types/sermon";
+import type {
+  AiDraftStatus,
+  CreateSermonInput,
+  EmailStatus,
+  Sermon,
+  SermonSourceType,
+  TranscriptionStatus,
+} from "@/types/sermon";
 
 export function createSermon(
   input: CreateSermonInput
@@ -18,14 +25,25 @@ export function getSermon(sermonId: string): Promise<Sermon> {
   return apiFetch<Sermon>(`/sermons/${sermonId}`);
 }
 
+export interface SermonUpdate {
+  title?: string;
+  preacher?: string | null;
+  scriptureReference?: string | null;
+  preachedAt?: string | null;
+  sourceUrl?: string | null;
+  mediaFileName?: string | null;
+  sourceType?: SermonSourceType;
+  transcript?: string | null;
+  transcriptStatus?: TranscriptionStatus | null;
+  followUpSubject?: string | null;
+  followUpBody?: string | null;
+  aiDraftStatus?: AiDraftStatus | null;
+  emailStatus?: EmailStatus | null;
+}
+
 export function updateSermon(
   sermonId: string,
-  patch: Partial<
-    Pick<
-      Sermon,
-      "title" | "preacher" | "scriptureReference" | "preachedAt"
-    >
-  >
+  patch: SermonUpdate
 ): Promise<Sermon> {
   return apiFetch<Sermon>(`/sermons/${sermonId}`, {
     method: "PATCH",

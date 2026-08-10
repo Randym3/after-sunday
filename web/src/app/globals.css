@@ -26,3 +26,25 @@ body {
   background: var(--accent);
   color: var(--brand);
 }
+
+/* Every actionable element gets a pointer cursor. */
+a,
+button,
+[role="button"],
+select,
+summary,
+input[type="checkbox"],
+input[type="radio"],
+label[for],
+[data-action] {
+  cursor: pointer;
+}
+
+/* Disabled controls should not look clickable. */
+button:disabled,
+a[aria-disabled="true"],
+select:disabled,
+input:disabled,
+label:has(input:disabled) {
+  cursor: not-allowed;
+}

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
 import {
   isAcceptedRecordingFile,
@@ -9,13 +9,18 @@ import {
 } from "@/components/sermons/useRecordingFileDrop";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { listMembers } from "@/lib/api/members";
 import { cn } from "@/lib/utils/cn";
+import type { Member } from "@/types/member";
 import {
   CreateSermonInput,
+  Sermon,
   SermonSourceType,
 } from "@/types/sermon";
 
 interface SermonFormProps {
+  /** Pass a sermon to enter edit mode (prefilled fields, Save button). */
+  sermon?: Sermon;
   onSubmit?: (
     values: CreateSermonInput,
     mediaFile: File | null
@@ -49,19 +54,47 @@ const sourceOptions: Array<{
   },
 ];
 
-export function SermonForm({ onSubmit }: SermonFormProps) {
-  const [values, setValues] = useState<CreateSermonInput>({
-    title: "",
-    preacher: "",
-    scriptureReference: "",
-    preachedAt: "",
-    sourceType: "upload",
-    youtubeUrl: "",
-    transcript: "",
-  });
+export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
+  const isEdit = Boolean(sermon);
+
+  const [values, setValues] = useState<CreateSermonInput>(() => ({
+    title: sermon?.title ?? "",
+    preacher: sermon?.preacher ?? "",
+    scriptureReference: sermon?.scriptureReference ?? "",
+    preachedAt: sermon?.preachedAt ?? "",
+    sourceType: (sermon?.sourceType as SermonSourceType) ?? "upload",
+    youtubeUrl: sermon?.sourceUrl ?? "",
+    transcript: sermon?.transcript ?? "",
+  }));
 
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [membersLoaded, setMembersLoaded] = useState(false);
+  const [preacherMode, setPreacherMode] = useState<
+    "directory" | "manual"
+  >("directory");
+
+  useEffect(() => {
+    let cancelled = false;
+
+    listMembers()
+      .then((data) => {
+        if (cancelled) return;
+        setMembers(data);
+      })
+      .catch(() => {
+        // Directory unavailable (e.g. not logged in) — fall back to
+        // the manual guest-preacher input.
+      })
+      .finally(() => {
+        if (!cancelled) setMembersLoaded(true);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   const [dragDropNotice, setDragDropNotice] = useState<{
     text: string;
     tone: "success" | "error";
@@ -235,15 +268,59 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
                 Preacher
               </label>
 
-              <input
-                id="preacher"
-                value={values.preacher}
-                onChange={(event) =>
-                  updateField("preacher", event.target.value)
+              {preacherMode === "directory" &&
+              membersLoaded &&
+              members.length > 0 ? (
+                <select
+                  id="preacher"
+                  value={values.preacher}
+                  onChange={(event) =>
+                    updateField("preacher", event.target.value)
+                  }
+                  className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                >
+                  <option value="">
+                    Select a preacher…
+                  </option>
+
+                  {members.map((member) => (
+                    <option
+                      key={member.id}
+                      value={`${member.firstName} ${member.lastName}`}
+                    >
+                      {member.firstName} {member.lastName}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  id="preacher"
+                  value={values.preacher}
+                  onChange={(event) =>
+                    updateField("preacher", event.target.value)
+                  }
+                  className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                  placeholder={
+                    preacherMode === "manual"
+                      ? "Guest preacher name"
+                      : "Pastor John"
+                  }
+                />
+              )}
+
+              <button
+                type="button"
+                onClick={() =>
+                  setPreacherMode((mode) =>
+                    mode === "directory" ? "manual" : "directory"
+                  )
                 }
-                className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
-                placeholder="Pastor John"
-              />
+                className="mt-2 text-xs font-medium text-[#012f11] underline underline-offset-2 transition hover:text-[#102015]"
+              >
+                {preacherMode === "directory"
+                  ? "Not in the directory? Enter a name"
+                  : "Choose from directory"}
+              </button>
             </div>
 
             <div>
@@ -524,14 +601,20 @@ export function SermonForm({ onSubmit }: SermonFormProps) {
 
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Link
-          href="/app/sermons"
+          href={isEdit ? `/app/sermons/${sermon!.id}` : "/app/sermons"}
           className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-[#fffdf7] px-5 py-2.5 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
         >
           Cancel
         </Link>
 
         <Button type="submit" disabled={isSubmitting}>
-          {isSubmitting ? "Creating..." : "Create Sermon"}
+          {isSubmitting
+            ? isEdit
+              ? "Saving..."
+              : "Creating..."
+            : isEdit
+              ? "Save Changes"
+              : "Create Sermon"}
         </Button>
       </div>
       </form>

@@ -5,18 +5,20 @@ import { useEffect, useState, useSyncExternalStore } from "react";
 
 import {
   getSermon,
-  updateTranscript as updateTranscriptApi,
+  updateSermon,
 } from "@/lib/api/sermons";
+import type { SermonUpdate } from "@/lib/api/sermons";
 
 import { EmailPreview } from "@/components/sermons/EmailPreview";
 import { FollowUpEditor } from "@/components/sermons/FollowUpEditor";
+import { SermonForm } from "@/components/sermons/SermonForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { cn } from "@/lib/utils/cn";
 import {
   Sermon,
-  SermonSourceType,
   TranscriptionStatus,
 } from "@/types/sermon";
 
@@ -94,34 +96,6 @@ const transcriptStatusConfig: Record<
     variant: "danger",
   },
 };
-
-function getSourceLabel(sourceType: SermonSourceType) {
-  const labels: Record<SermonSourceType, string> = {
-    upload: "Uploaded recording",
-    youtube: "YouTube",
-    transcript: "Pasted transcript",
-  };
-
-  return labels[sourceType];
-}
-
-function formatDate(value?: string | null) {
-  if (!value) {
-    return "Date not added";
-  }
-
-  const date = new Date(`${value}T00:00:00`);
-
-  if (Number.isNaN(date.getTime())) {
-    return value;
-  }
-
-  return new Intl.DateTimeFormat("en-US", {
-    month: "long",
-    day: "numeric",
-    year: "numeric",
-  }).format(date);
-}
 
 function buildMockFollowUp(sermon: Sermon) {
   const preacher = sermon.preacher || "Your pastor";
@@ -232,8 +206,9 @@ function mergeServerSermon(server: Sermon, local: Sermon): Sermon {
 export function SermonWorkspace({
   sermonId,
 }: SermonWorkspaceProps) {
-  const [transcriptMessage, setTranscriptMessage] = useState("");
   const [followUpMessage, setFollowUpMessage] = useState("");
+  const [detailsMessage, setDetailsMessage] = useState("");
+  const [tab, setTab] = useState<"details" | "ai">("details");
 
   // Real sermon ids are persisted via the API; "demo" is the mock path
   // backed by the sessionStorage store.
@@ -322,48 +297,6 @@ export function SermonWorkspace({
       transcript: sermon.transcript || demoTranscript,
       transcriptStatus: "ready",
     });
-
-    setTranscriptMessage("");
-  }
-
-  function updateTranscript(transcript: string) {
-    const wasApproved = sermon.aiDraftStatus === "approved";
-
-    commitSermon({
-      ...sermon,
-      transcript,
-      aiDraftStatus: wasApproved
-        ? "draft_ready"
-        : sermon.aiDraftStatus,
-      emailStatus: wasApproved
-        ? "draft"
-        : sermon.emailStatus,
-    });
-
-    setTranscriptMessage("");
-  }
-
-  async function saveTranscript() {
-    if (isPersistedSermon) {
-      try {
-        const serverSermon = await updateTranscriptApi(
-          sermonId,
-          sermon.transcript ?? ""
-        );
-        commitSermon(mergeServerSermon(serverSermon, sermon));
-        setTranscriptMessage("Transcript saved.");
-      } catch (error) {
-        setTranscriptMessage(
-          error instanceof Error
-            ? error.message
-            : "Could not save the transcript."
-        );
-      }
-      return;
-    }
-
-    writeStoredSermon(sermon);
-    setTranscriptMessage("Transcript saved.");
   }
 
   async function generateFollowUp() {
@@ -508,13 +441,6 @@ export function SermonWorkspace({
 
       <PageHeader
         title={sermon.title}
-        description={[
-          sermon.preacher,
-          sermon.scriptureReference,
-          formatDate(sermon.preachedAt),
-        ]
-          .filter(Boolean)
-          .join(" · ")}
         action={
           <Badge variant={status.variant}>
             {status.label}
@@ -522,191 +448,257 @@ export function SermonWorkspace({
         }
       />
 
-      <div className="grid gap-5 md:grid-cols-3">
-        <Card>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Sermon source
-          </p>
+      {/* Tab bar */}
+      <div className="flex gap-1 rounded-2xl bg-stone-100 p-1 w-fit">
+        <button
+          type="button"
+          onClick={() => setTab("details")}
+          className={cn(
+            "rounded-xl px-4 py-2 text-sm font-medium transition",
+            tab === "details"
+              ? "bg-white text-[#012f11] shadow-sm"
+              : "text-stone-600 hover:text-[#102015]",
+          )}
+        >
+          Sermon Details
+        </button>
 
-          <p className="mt-3 font-semibold text-[#102015]">
-            {getSourceLabel(sermon.sourceType)}
-          </p>
-
-          <p className="mt-2 break-words text-sm leading-6 text-stone-600">
-            {sermon.sourceType === "upload"
-              ? sermon.mediaFileName || "Recording selected"
-              : null}
-
-            {sermon.sourceType === "youtube"
-              ? sermon.sourceUrl || "YouTube video"
-              : null}
-
-            {sermon.sourceType === "transcript"
-              ? "Transcript provided by church staff"
-              : null}
-          </p>
-
-          <p className="mt-3 text-xs leading-5 text-stone-500">
-            {sermon.sourceType === "upload"
-              ? "Prototype only: the recording is not uploaded or saved. Only its filename is kept in this browser session."
-              : sermon.sourceType === "youtube"
-                ? "Prototype only: no YouTube connection is made. Only the link is kept in this browser session."
-                : isPersistedSermon
-                  ? "Saved to the church database. Transcript edits persist when you save."
-                  : "Prototype only: this transcript is kept in this browser session only."}
-          </p>
-        </Card>
-
-        <Card>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Scripture
-          </p>
-
-          <p className="mt-3 font-semibold text-[#102015]">
-            {sermon.scriptureReference || "Not added"}
-          </p>
-
-          <p className="mt-2 text-sm text-stone-600">
-            {sermon.preacher || "Preacher not added"}
-          </p>
-        </Card>
-
-        <Card>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
-            Follow-up status
-          </p>
-
-          <div className="mt-3">
-            <Badge
-              variant={
-                sermon.aiDraftStatus === "approved"
-                  ? "success"
-                  : sermon.aiDraftStatus === "draft_ready"
-                    ? "warning"
-                    : "neutral"
-              }
-            >
-              {sermon.aiDraftStatus === "approved"
-                ? "Approved"
-                : sermon.aiDraftStatus === "draft_ready"
-                  ? "Needs review"
-                  : sermon.aiDraftStatus === "generating"
-                    ? "Generating"
-                    : "Not generated"}
-            </Badge>
-          </div>
-
-          <p className="mt-3 text-sm leading-6 text-stone-600">
-            AI-generated content must be approved before it can be
-            sent.
-          </p>
-        </Card>
+        <button
+          type="button"
+          onClick={() => setTab("ai")}
+          className={cn(
+            "rounded-xl px-4 py-2 text-sm font-medium transition",
+            tab === "ai"
+              ? "bg-white text-[#012f11] shadow-sm"
+              : "text-stone-600 hover:text-[#102015]",
+          )}
+        >
+          AI Draft
+        </button>
       </div>
 
-      <Card>
-        <div className="flex flex-col gap-4 border-b border-[#ddd8c8] pb-5 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h2 className="text-xl font-semibold text-[#102015]">
-              Sermon transcript
-            </h2>
+      {/* Tab content with fade transition */}
+      <div className="relative">
+        {/* ——— Sermon Details tab ——— */}
+        <div
+          className={cn(
+            "space-y-8 transition-opacity duration-200",
+            tab === "details"
+              ? "opacity-100"
+              : "pointer-events-none absolute inset-0 top-0 opacity-0",
+          )}
+          aria-hidden={tab !== "details"}
+        >
+          <SermonForm
+            sermon={sermon}
+            onSubmit={async (values) => {
+              const wasDrafted =
+                sermon.aiDraftStatus === "draft_ready" ||
+                sermon.aiDraftStatus === "approved";
 
-            <p className="mt-1 text-sm leading-6 text-stone-600">
-              Review and correct the transcript before generating
-              pastoral follow-up content.
+              const hasMetaChange =
+                values.title !== sermon.title ||
+                values.preacher !== (sermon.preacher ?? "") ||
+                values.scriptureReference !==
+                  (sermon.scriptureReference ?? "") ||
+                values.preachedAt !== (sermon.preachedAt ?? "");
+
+              const patch: SermonUpdate = {
+                title: values.title,
+                preacher: values.preacher || null,
+                scriptureReference:
+                  values.scriptureReference || null,
+                preachedAt: values.preachedAt || null,
+                sourceType: values.sourceType,
+                sourceUrl:
+                  values.sourceType === "youtube"
+                    ? values.youtubeUrl || null
+                    : null,
+                transcript: values.transcript || null,
+              };
+
+              if (wasDrafted && hasMetaChange) {
+                patch.followUpSubject = null;
+                patch.followUpBody = null;
+                patch.aiDraftStatus = "not_started";
+                patch.emailStatus = "not_started";
+              }
+
+              if (isPersistedSermon) {
+                const serverSermon = await updateSermon(
+                  sermonId,
+                  patch,
+                );
+                commitSermon(
+                  mergeServerSermon(serverSermon, sermon),
+                );
+
+                setDetailsMessage(
+                  wasDrafted && hasMetaChange
+                    ? "Saved — AI follow-up drafts have been cleared."
+                    : "Saved.",
+                );
+                window.setTimeout(
+                  () => setDetailsMessage(""),
+                  6_000,
+                );
+              } else {
+                commitSermon({
+                  ...sermon,
+                  title: values.title,
+                  preacher: values.preacher || null,
+                  scriptureReference:
+                    values.scriptureReference || null,
+                  preachedAt: values.preachedAt || null,
+                  sourceType: values.sourceType,
+                  sourceUrl:
+                    values.sourceType === "youtube"
+                      ? values.youtubeUrl || null
+                      : null,
+                  transcript: values.transcript || null,
+                  ...(wasDrafted && hasMetaChange
+                    ? {
+                        followUpSubject: null,
+                        followUpBody: null,
+                        aiDraftStatus: "not_started" as const,
+                        emailStatus: "not_started" as const,
+                      }
+                    : {}),
+                });
+                setDetailsMessage("Saved.");
+              }
+            }}
+          />
+
+          {detailsMessage ? (
+            <p className="text-sm font-medium text-green-800">
+              {detailsMessage}
             </p>
-          </div>
-
-          <Badge variant={status.variant}>
-            {status.label}
-          </Badge>
+          ) : null}
         </div>
 
-        {sermon.transcriptStatus !== "ready" ? (
-          <div className="py-10 text-center">
-            <h3 className="font-semibold text-[#102015]">
-              {status.label}
-            </h3>
+        {/* ——— AI Draft tab ——— */}
+        <div
+          className={cn(
+            "space-y-8 transition-opacity duration-200",
+            tab === "ai"
+              ? "opacity-100"
+              : "pointer-events-none absolute inset-0 top-0 opacity-0",
+          )}
+          aria-hidden={tab !== "ai"}
+        >
+          {/* Transcript — read-only */}
+          <Card>
+            <div className="flex flex-col gap-4 border-b border-[#ddd8c8] pb-5 sm:flex-row sm:items-start sm:justify-between">
+              <div>
+                <h2 className="text-lg font-semibold text-[#102015]">
+                  Sermon transcript
+                </h2>
 
-            <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-stone-600">
-              {status.description}
-            </p>
-
-            <div className="mt-6">
-              <Button
-                type="button"
-                variant="secondary"
-                onClick={markTranscriptReady}
-              >
-                Mark Transcript Ready
-              </Button>
-            </div>
-
-            <p className="mx-auto mt-3 max-w-md text-xs leading-5 text-stone-500">
-              Prototype action — simulates transcription finishing so
-              you can test the review and follow-up flow. No recording
-              is uploaded or transcribed.
-            </p>
-          </div>
-        ) : (
-          <div className="pt-6">
-            <label
-              htmlFor="workspaceTranscript"
-              className="block text-sm font-medium text-stone-800"
-            >
-              Transcript
-            </label>
-
-            <textarea
-              id="workspaceTranscript"
-              value={sermon.transcript ?? ""}
-              onChange={(event) =>
-                updateTranscript(event.target.value)
-              }
-              className="mt-2 min-h-[28rem] w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-[#012f11]"
-              placeholder="The sermon transcript will appear here..."
-            />
-
-            <div className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="text-xs text-stone-500">
-                <span>{transcriptWordCount} words</span>
-
-                {transcriptMessage ? (
-                  <span className="ml-3 font-medium text-green-800">
-                    {transcriptMessage}
-                  </span>
-                ) : null}
+                <p className="mt-1 text-sm leading-6 text-stone-600">
+                  The finalized transcript used for AI follow-up
+                  generation.
+                </p>
               </div>
 
-              <Button
-                type="button"
-                onClick={saveTranscript}
-              >
-                Save Transcript
-              </Button>
+              <Badge variant={status.variant}>
+                {status.label}
+              </Badge>
             </div>
+
+            {sermon.transcriptStatus !== "ready" ? (
+              <div className="py-10 text-center">
+                <h3 className="font-semibold text-[#102015]">
+                  {status.label}
+                </h3>
+
+                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-stone-600">
+                  {status.description}
+                </p>
+
+                <div className="mt-6">
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={markTranscriptReady}
+                  >
+                    Mark Transcript Ready
+                  </Button>
+                </div>
+
+                <p className="mx-auto mt-3 max-w-md text-xs leading-5 text-stone-500">
+                  Prototype action — simulates transcription
+                  finishing so you can test the follow-up flow.
+                </p>
+              </div>
+            ) : (
+              <div className="pt-6">
+                <p className="italic leading-7 text-stone-600">
+                  {sermon.transcript?.trim() ||
+                    "No transcript available yet. Switch to the Sermon Details tab to add or edit the transcript."}
+                </p>
+
+                <div className="mt-4 text-xs text-stone-500">
+                  <span>{transcriptWordCount} words</span>
+                </div>
+              </div>
+            )}
+          </Card>
+
+          {/* Follow-up status */}
+          <Card>
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
+              Follow-up status
+            </p>
+
+            <div className="mt-3">
+              <Badge
+                variant={
+                  sermon.aiDraftStatus === "approved"
+                    ? "success"
+                    : sermon.aiDraftStatus === "draft_ready"
+                      ? "warning"
+                      : "neutral"
+                }
+              >
+                {sermon.aiDraftStatus === "approved"
+                  ? "Approved"
+                  : sermon.aiDraftStatus === "draft_ready"
+                    ? "Needs review"
+                    : sermon.aiDraftStatus === "generating"
+                      ? "Generating"
+                      : "Not generated"}
+              </Badge>
+            </div>
+
+            <p className="mt-3 text-sm leading-6 text-stone-600">
+              AI-generated content must be approved before it can be
+              sent.
+            </p>
+          </Card>
+
+          {/* Follow-up editor + email preview */}
+          <div className="grid gap-6 xl:grid-cols-2">
+            <FollowUpEditor
+              subject={sermon.followUpSubject ?? ""}
+              body={sermon.followUpBody ?? ""}
+              status={sermon.aiDraftStatus}
+              canGenerate={canGenerateFollowUp}
+              message={followUpMessage}
+              onGenerate={generateFollowUp}
+              onSubjectChange={updateFollowUpSubject}
+              onBodyChange={updateFollowUpBody}
+              onSave={saveFollowUp}
+              onApprove={approveFollowUp}
+            />
+
+            <EmailPreview
+              subject={sermon.followUpSubject ?? ""}
+              body={sermon.followUpBody ?? ""}
+              status={sermon.aiDraftStatus}
+            />
           </div>
-        )}
-      </Card>
-
-      <div className="grid gap-6 xl:grid-cols-2">
-        <FollowUpEditor
-          subject={sermon.followUpSubject ?? ""}
-          body={sermon.followUpBody ?? ""}
-          status={sermon.aiDraftStatus}
-          canGenerate={canGenerateFollowUp}
-          message={followUpMessage}
-          onGenerate={generateFollowUp}
-          onSubjectChange={updateFollowUpSubject}
-          onBodyChange={updateFollowUpBody}
-          onSave={saveFollowUp}
-          onApprove={approveFollowUp}
-        />
-
-        <EmailPreview
-          subject={sermon.followUpSubject ?? ""}
-          body={sermon.followUpBody ?? ""}
-          status={sermon.aiDraftStatus}
-        />
+        </div>
       </div>
     </div>
   );

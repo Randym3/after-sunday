@@ -33,6 +33,7 @@ class SermonUpdate(BaseModel):
     preacher: str | None = Field(default=None, max_length=200)
     scripture_reference: str | None = Field(default=None, max_length=200)
     preached_at: date | None = None
+    source_type: SermonSourceType | None = None
     source_url: str | None = None
     media_file_name: str | None = None
     transcript: str | None = None
