@@ -4,7 +4,7 @@ import { appNavigationItems } from "@/lib/constants/navigation";
 
 export function AppSidebar() {
   return (
-    <aside className="hidden min-h-screen w-72 flex-col border-r border-[#ddd8c8] bg-[#fffdf7] px-5 py-6 lg:flex">
+    <aside className="sticky top-0 hidden h-screen w-72 flex-col border-r border-[#ddd8c8] bg-[#fffdf7] px-5 py-6 lg:flex">
       <Link href="/app/dashboard" className="block">
         <div className="text-lg font-semibold tracking-tight text-[#012f11]">
           After Sunday

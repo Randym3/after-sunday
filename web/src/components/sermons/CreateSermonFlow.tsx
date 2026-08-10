@@ -1,16 +1,12 @@
 "use client";
 
 import { useRouter } from "next/navigation";
+import { useState } from "react";
 
 import { SermonForm } from "@/components/sermons/SermonForm";
+import { MediaUploader } from "@/components/sermons/MediaUploader";
 import { createSermon } from "@/lib/api/sermons";
-import {
-  CreateSermonInput,
-  Sermon,
-  TranscriptionStatus,
-} from "@/types/sermon";
-
-const SERMON_STORAGE_KEY = "after-sunday:demo-sermon";
+import { CreateSermonInput } from "@/types/sermon";
 
 function errorMessage(error: unknown) {
   return error instanceof Error
@@ -18,71 +14,48 @@ function errorMessage(error: unknown) {
     : "Something went wrong. Please try again.";
 }
 
+type Flow =
+  | { stage: "form" }
+  | { stage: "uploading"; sermonId: string; file: File };
+
 export function CreateSermonFlow() {
   const router = useRouter();
+  const [flow, setFlow] = useState<Flow>({ stage: "form" });
 
   async function handleCreateSermon(
     values: CreateSermonInput,
-    mediaFile: File | null
+    mediaFile: File | null,
   ) {
-    // Pasted-transcript sermons persist for real via the API.
-    if (values.sourceType === "transcript") {
-      try {
-        const sermon = await createSermon(values);
-        router.push(`/app/sermons/${sermon.id}`);
-      } catch (error) {
-        alert(errorMessage(error));
+    try {
+      const sermon = await createSermon(values);
+      const sermonId = sermon.id;
+
+      // For upload sources: create the row first, then upload the file.
+      if (values.sourceType === "upload" && mediaFile) {
+        setFlow({ stage: "uploading", sermonId, file: mediaFile });
+        return;
       }
-      return;
+
+      router.push(`/app/sermons/${sermonId}`);
+    } catch (error) {
+      alert(errorMessage(error));
     }
+  }
 
-    // Upload and YouTube sources stay mocked until the media slice.
-    const hasTranscript = Boolean(values.transcript?.trim());
+  function handleUploadCancel() {
+    setFlow({ stage: "form" });
+  }
 
-    let transcriptStatus: TranscriptionStatus;
-
-    if (hasTranscript) {
-      transcriptStatus = "ready";
-    } else if (values.sourceType === "youtube") {
-      transcriptStatus = "queued";
-    } else if (values.sourceType === "upload") {
-      transcriptStatus = "processing";
-    } else {
-      transcriptStatus = "not_started";
-    }
-
-    const sermon: Sermon = {
-      id: "demo",
-      title: values.title,
-      preacher: values.preacher || null,
-      scriptureReference: values.scriptureReference || null,
-      preachedAt: values.preachedAt || null,
-
-      sourceType: values.sourceType,
-      sourceUrl:
-        values.sourceType === "youtube"
-          ? values.youtubeUrl || null
-          : null,
-      mediaFileName:
-        values.sourceType === "upload"
-          ? mediaFile?.name || null
-          : null,
-
-      transcript: values.transcript?.trim() || null,
-      transcriptStatus,
-
-      followUpSubject: null,
-      followUpBody: null,
-      aiDraftStatus: "not_started",
-      emailStatus: "not_started",
-    };
-
-    sessionStorage.setItem(
-      SERMON_STORAGE_KEY,
-      JSON.stringify(sermon)
+  if (flow.stage === "uploading") {
+    return (
+      <MediaUploader
+        sermonId={flow.sermonId}
+        file={flow.file}
+        onComplete={() => router.push(`/app/sermons/${flow.sermonId}`)}
+        onCancel={handleUploadCancel}
+        note="Your recording is being saved. You can see the progress above."
+      />
     );
-
-    router.push("/app/sermons/demo");
   }
 
   return <SermonForm onSubmit={handleCreateSermon} />;

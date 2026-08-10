@@ -477,8 +477,11 @@ export function SermonWorkspace({
         </button>
       </div>
 
-      {/* Tab content with fade transition */}
-      <div className="relative">
+      {/* Tab content with fade transition.
+          overflow-hidden keeps the hidden (absolutely-positioned) tab's
+          content from extending the page height — otherwise the invisible
+          AI tab adds phantom scroll and breaks the sticky sidebar. */}
+      <div className="relative overflow-hidden">
         {/* ——— Sermon Details tab ——— */}
         <div
           className={cn(

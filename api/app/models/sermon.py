@@ -1,7 +1,7 @@
 import uuid
 from datetime import date, datetime
 
-from sqlalchemy import DateTime, Date, Index, String, Text, Uuid, func
+from sqlalchemy import BigInteger, DateTime, Date, Index, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
@@ -30,6 +30,15 @@ class Sermon(Base):
     source_url: Mapped[str | None] = mapped_column(Text, nullable=True)
     media_file_name: Mapped[str | None] = mapped_column(
         String(255), nullable=True
+    )
+    media_storage_key: Mapped[str | None] = mapped_column(
+        String(512), nullable=True
+    )
+    media_size_bytes: Mapped[int | None] = mapped_column(
+        BigInteger, nullable=True
+    )
+    media_content_type: Mapped[str | None] = mapped_column(
+        String(100), nullable=True
     )
 
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)

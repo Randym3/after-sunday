@@ -36,6 +36,9 @@ class SermonUpdate(BaseModel):
     source_type: SermonSourceType | None = None
     source_url: str | None = None
     media_file_name: str | None = None
+    media_storage_key: str | None = None
+    media_size_bytes: int | None = None
+    media_content_type: str | None = None
     transcript: str | None = None
     transcript_status: TranscriptionStatus | None = None
     follow_up_subject: str | None = Field(default=None, max_length=300)
@@ -65,6 +68,9 @@ class SermonRead(BaseModel):
     source_type: str
     source_url: str | None
     media_file_name: str | None
+    media_storage_key: str | None
+    media_size_bytes: int | None
+    media_content_type: str | None
     transcript: str | None
     transcript_status: str
     follow_up_subject: str | None

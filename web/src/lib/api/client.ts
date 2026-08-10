@@ -15,6 +15,10 @@ function getClient() {
 // Supabase access tokens expire after about an hour. `getSession()` can
 // return an expired token without refreshing it, so refresh explicitly
 // before calling the API.
+export async function getAuthToken(): Promise<string | null> {
+  return getAccessToken();
+}
+
 async function getAccessToken(): Promise<string | null> {
   const supabase = getClient();
 
@@ -82,7 +86,12 @@ export async function apiFetch<T>(
   const accessToken = await getAccessToken();
 
   const headers = new Headers(options.headers);
-  headers.set("Content-Type", "application/json");
+
+  // Let the browser set the correct Content-Type (including multipart
+  // boundaries) for anything that isn’t a plain JSON body.
+  if (!(options.body instanceof FormData)) {
+    headers.set("Content-Type", "application/json");
+  }
 
   if (accessToken) {
     headers.set("Authorization", `Bearer ${accessToken}`);

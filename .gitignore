@@ -36,3 +36,4 @@ pnpm-debug.log*
 
 # Freebuff desktop local state
 .freebuff/
+api/storage/
