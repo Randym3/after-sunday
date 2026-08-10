@@ -32,6 +32,25 @@ interface SermonFormProps {
   } | null;
   onUploadComplete?: () => void;
   onUploadCancel?: () => void;
+  /**
+   * Called immediately when a recording file is dropped (or picked via
+   * the file browser).  The parent should create the sermon row and
+   * start the upload so transcription runs in parallel while the user
+   * fills out the form.
+   */
+  onFileDrop?: (file: File) => void;
+  /**
+   * Create mode only: the transcript that arrived from automatic
+   * transcription.  `undefined` = not transcribing; `null` = failed;
+   * a string = the transcript (ready).
+   */
+  transcribingTranscript?: string | null;
+  /**
+   * When true, the submit button reads "Save & Continue" instead of
+   * "Create Sermon" and the form does not require a file to be attached
+   * (the file was already dropped and uploaded).
+   */
+  isUploadInProgress?: boolean;
 }
 
 const sourceOptions: Array<{
@@ -51,7 +70,7 @@ const sourceOptions: Array<{
     value: "youtube",
     title: "YouTube",
     description:
-      "Add a sermon from your church’s YouTube channel or provide a video URL.",
+      "Add a sermon from your church's YouTube channel or provide a video URL.",
   },
   {
     value: "transcript",
@@ -67,8 +86,18 @@ export function SermonForm({
   upload = null,
   onUploadComplete,
   onUploadCancel,
+  onFileDrop,
+  transcribingTranscript,
+  isUploadInProgress = false,
 }: SermonFormProps) {
   const isEdit = Boolean(sermon);
+  const isTranscribing =
+    !isEdit && transcribingTranscript === null;
+  const autoTranscript =
+    !isEdit && typeof transcribingTranscript === "string"
+      ? transcribingTranscript
+      : null;
+
   const hasExistingMedia =
     isEdit &&
     sermon?.sourceType === "upload" &&
@@ -149,6 +178,10 @@ export function SermonForm({
     transcript: sermon?.transcript ?? "",
   }));
 
+  // The transcript shown in the textarea: auto-transcript wins over user input.
+  const displayedTranscript: string =
+    autoTranscript ?? (values.transcript ?? "");
+
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
@@ -197,7 +230,7 @@ export function SermonForm({
   function handleFileDropped(file: File) {
     if (!isAcceptedRecordingFile(file)) {
       setDragDropNotice({
-        text: "That file type isn’t supported. Use an MP3, M4A, WAV, MP4, or WebM recording.",
+        text: "That file type isn't supported. Use an MP3, M4A, WAV, MP4, or WebM recording.",
         tone: "error",
       });
       return;
@@ -217,76 +250,74 @@ export function SermonForm({
     // Guard against re-entrancy: assigning input.files above fires a second
     // `change` event that re-runs this handler. The ref skips the auto-fill on
     // that second run so it can't clear the flash before it paints.
-    if (processedFileRef.current === file) {
-      setDragDropNotice({
-        text: `Recording added — ${file.name}`,
-        tone: "success",
-      });
-      return;
-    }
-    processedFileRef.current = file;
+    if (processedFileRef.current !== file) {
+      processedFileRef.current = file;
 
-    // Only auto-fill on create — never touch fields in edit mode.
-    if (!isEdit) {
-      // Derive the fill decisions from the current values BEFORE calling
-      // setValues, since React defers updater functions to the render phase.
-      const baseName = file.name.replace(/\.[^.]+$/, "");
-      const titleFromFile = baseName
-        .replace(/[_-]+/g, " ")
-        .replace(/\s+/g, " ")
-        .trim();
-      const fillTitle =
-        !!titleFromFile && !values.title?.trim();
+      // Only auto-fill on create — never touch fields in edit mode.
+      if (!isEdit) {
+        const baseName = file.name.replace(/\.[^.]+$/, "");
+        const titleFromFile = baseName
+          .replace(/[_-]+/g, " ")
+          .replace(/\s+/g, " ")
+          .trim();
+        const fillTitle =
+          !!titleFromFile && !values.title?.trim();
 
-      const fillDate =
-        !values.preachedAt && file.lastModified > 0;
+        const fillDate =
+          !values.preachedAt && file.lastModified > 0;
 
-      if (fillTitle || fillDate) {
-        setValues((currentValues) => {
-          const nextValues: CreateSermonInput = {
-            ...currentValues,
-            sourceType: "upload",
-          };
+        if (fillTitle || fillDate) {
+          setValues((currentValues) => {
+            const nextValues: CreateSermonInput = {
+              ...currentValues,
+              sourceType: "upload",
+            };
 
-          if (fillTitle && !nextValues.title?.trim()) {
-            nextValues.title = titleFromFile;
-          }
+            if (fillTitle && !nextValues.title?.trim()) {
+              nextValues.title = titleFromFile;
+            }
 
-          if (fillDate && !nextValues.preachedAt) {
-            const fileDate = new Date(file.lastModified);
-            const year = fileDate.getFullYear();
-            const month = String(fileDate.getMonth() + 1).padStart(2, "0");
-            const day = String(fileDate.getDate()).padStart(2, "0");
-            nextValues.preachedAt = `${year}-${month}-${day}`;
-          }
+            if (fillDate && !nextValues.preachedAt) {
+              const fileDate = new Date(file.lastModified);
+              const year = fileDate.getFullYear();
+              const month = String(fileDate.getMonth() + 1).padStart(2, "0");
+              const day = String(fileDate.getDate()).padStart(2, "0");
+              nextValues.preachedAt = `${year}-${month}-${day}`;
+            }
 
-          return nextValues;
-        });
-      }
-
-      if (fillTitle || fillDate) {
-        if (flashTimeoutRef.current) {
-          clearTimeout(flashTimeoutRef.current);
+            return nextValues;
+          });
         }
 
-        setFlash({ title: fillTitle, date: fillDate });
-        // Quick fade in (200ms) → fade out (200ms).
-        flashTimeoutRef.current = setTimeout(() => {
-          setFlash({ title: false, date: false });
-        }, 250);
+        if (fillTitle || fillDate) {
+          if (flashTimeoutRef.current) {
+            clearTimeout(flashTimeoutRef.current);
+          }
 
-        setDragDropNotice({
-          text: `Recording added — ${file.name}. Title and date were prefilled from the file.`,
-          tone: "success",
-        });
-        return;
+          setFlash({ title: fillTitle, date: fillDate });
+          flashTimeoutRef.current = setTimeout(() => {
+            setFlash({ title: false, date: false });
+          }, 250);
+
+          setDragDropNotice({
+            text: `Recording added — ${file.name}. Title and date were prefilled from the file.`,
+            tone: "success",
+          });
+        } else {
+          setDragDropNotice({
+            text: `Recording added — ${file.name}`,
+            tone: "success",
+          });
+        }
       }
     }
 
-    setDragDropNotice({
-      text: `Recording added — ${file.name}`,
-      tone: "success",
-    });
+    // Always tell the parent so it creates the sermon + starts upload
+    // immediately — the heavy work runs in parallel while the user fills
+    // out the form.
+    if (onFileDrop) {
+      onFileDrop(file);
+    }
   }
 
   const { isDraggingFile } = useRecordingFileDrop({
@@ -311,6 +342,12 @@ export function SermonForm({
   }
 
   function validateSubmission() {
+    // If a file was already dropped + uploaded, we don't need to check for
+    // a local mediaFile — the upload is already in progress or complete.
+    if (isUploadInProgress) {
+      return true;
+    }
+
     // In edit mode the file was already uploaded — skip the file check.
     if (!isEdit && values.sourceType === "upload" && !mediaFile) {
       alert("Choose an audio or video recording to upload.");
@@ -344,7 +381,6 @@ export function SermonForm({
     if (!validateSubmission()) {
       return;
     }
-
 
     const submissionValues: CreateSermonInput = {
       ...values,
@@ -551,76 +587,118 @@ export function SermonForm({
               </h2>
             </div>
 
-            {/* File info — compact row */}
-            <div className="flex items-center gap-3">
-              <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-                <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2h5l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><polyline points="11,2 11,7 16,7"/></svg>
-              </span>
+            <div className="grid gap-6 lg:grid-cols-2">
+              {/* Left column — file info + preview */}
+              <div className="space-y-5">
+                {/* File info — compact row */}
+                <div className="flex items-center gap-3">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                    <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2h5l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><polyline points="11,2 11,7 16,7"/></svg>
+                  </span>
 
-              <div className="min-w-0 flex-1">
-                <p className="truncate text-sm font-medium text-stone-800">
-                  {sermon?.mediaFileName ?? "Recording"}
-                </p>
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-sm font-medium text-stone-800">
+                      {sermon?.mediaFileName ?? "Recording"}
+                    </p>
 
-                <p className="text-xs text-stone-500">
-                  {sermon?.mediaSizeBytes
-                    ? `${(sermon.mediaSizeBytes / (1024 * 1024)).toFixed(1)} MB`
-                    : ""}
-                  {sermon?.mediaContentType
-                    ? ` \u2022 ${sermon.mediaContentType}`
-                    : ""}
+                    <p className="text-xs text-stone-500">
+                      {sermon?.mediaSizeBytes
+                        ? `${(sermon.mediaSizeBytes / (1024 * 1024)).toFixed(1)} MB`
+                        : ""}
+                      {sermon?.mediaContentType
+                        ? ` \u2022 ${sermon.mediaContentType}`
+                        : ""}
+                    </p>
+                  </div>
+                </div>
+
+                {/* Video preview — YouTube-style thumbnail, click to play */}
+                {mediaBlobUrl &&
+                sermon?.mediaContentType?.startsWith("video/") ? (
+                  <div className="overflow-hidden rounded-xl bg-stone-900">
+                    {videoPlaying ? (
+                      <video
+                        ref={videoRef}
+                        controls
+                        autoPlay
+                        className="aspect-video w-full"
+                        src={mediaBlobUrl}
+                        onEnded={() => setVideoPlaying(false)}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => setVideoPlaying(true)}
+                        className="group relative flex aspect-video w-full items-center justify-center"
+                        aria-label="Play recording"
+                      >
+                        <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 shadow-lg transition group-hover:scale-105 group-hover:bg-black/70">
+                          <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
+                            <polygon points="8,5 19,12 8,19" />
+                          </svg>
+                        </div>
+                      </button>
+                    )}
+                  </div>
+                ) : mediaBlobUrl &&
+                  sermon?.mediaContentType?.startsWith("audio/") ? (
+                  <audio controls className="w-full" src={mediaBlobUrl} />
+                ) : mediaLoadError ? (
+                  <div className="flex h-12 items-center justify-center rounded-2xl bg-stone-100 text-xs text-stone-400">
+                    Preview unavailable
+                  </div>
+                ) : (
+                  <div className="flex h-12 items-center justify-center rounded-2xl bg-stone-100 text-xs text-stone-400">
+                    Loading preview…
+                  </div>
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setShowSourceEditor(true)}
+                  className="text-sm font-medium text-[#012f11] underline underline-offset-2 transition hover:text-[#102015]"
+                >
+                  Change source
+                </button>
+              </div>
+
+              {/* Right column — transcript, editable alongside the recording */}
+              <div className="flex min-w-0 flex-col">
+                <div className="flex items-center justify-between">
+                  <label
+                    htmlFor="transcript"
+                    className="text-sm font-medium text-stone-800"
+                  >
+                    Transcript
+                  </label>
+
+                  <span className="text-xs text-stone-500">
+                    {
+                      (values.transcript ?? "")
+                        .trim()
+                        .split(/\s+/)
+                        .filter(Boolean).length
+                    }{" "}
+                    words
+                  </span>
+                </div>
+
+                <textarea
+                  id="transcript"
+                  value={values.transcript ?? ""}
+                  onChange={(event) =>
+                    updateField("transcript", event.target.value)
+                  }
+                  className="mt-2 min-h-64 w-full flex-1 resize-y rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#012f11]"
+                  placeholder="No transcript yet — it will appear here after transcription."
+                />
+
+                <p className="mt-2 text-xs leading-5 text-stone-500">
+                  Editable transcript. The AI Draft tab uses this text
+                  as the source for generating follow-up content.
                 </p>
               </div>
             </div>
-
-            {/* Video preview — YouTube-style thumbnail, click to play */}
-            {mediaBlobUrl &&
-            sermon?.mediaContentType?.startsWith("video/") ? (
-              <div className="max-w-sm overflow-hidden rounded-xl bg-stone-900">
-                {videoPlaying ? (
-                  <video
-                    ref={videoRef}
-                    controls
-                    autoPlay
-                    className="aspect-video w-full"
-                    src={mediaBlobUrl}
-                    onEnded={() => setVideoPlaying(false)}
-                  />
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => setVideoPlaying(true)}
-                    className="group relative flex aspect-video w-full items-center justify-center"
-                    aria-label="Play recording"
-                  >
-                    <div className="flex h-10 w-10 items-center justify-center rounded-full bg-black/60 shadow-lg transition group-hover:scale-105 group-hover:bg-black/70">
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                        <polygon points="8,5 19,12 8,19" />
-                      </svg>
-                    </div>
-                  </button>
-                )}
-              </div>
-            ) : mediaBlobUrl &&
-              sermon?.mediaContentType?.startsWith("audio/") ? (
-              <audio controls className="w-full" src={mediaBlobUrl} />
-            ) : mediaLoadError ? (
-              <div className="flex h-12 items-center justify-center rounded-2xl bg-stone-100 text-xs text-stone-400">
-                Preview unavailable
-              </div>
-            ) : (
-              <div className="flex h-12 items-center justify-center rounded-2xl bg-stone-100 text-xs text-stone-400">
-                Loading preview\u2026
-              </div>
-            )}
-
-            <button
-              type="button"
-              onClick={() => setShowSourceEditor(true)}
-              className="text-sm font-medium text-[#012f11] underline underline-offset-2 transition hover:text-[#102015]"
-            >
-              Change source
-            </button>
           </div>
         </Card>
       ) : (
@@ -734,8 +812,7 @@ export function SermonForm({
 
                 <span className="mt-2 max-w-md text-sm leading-6 text-stone-600">
                   Select an MP3, M4A, WAV, MP4, or WebM file.
-                  After Sunday will transcribe it once the backend is
-                  connected.
+                  Transcription starts immediately after upload.
                 </span>
 
                 {mediaFile ? (
@@ -751,7 +828,7 @@ export function SermonForm({
                   file={upload.file}
                   onComplete={() => onUploadComplete?.()}
                   onCancel={() => onUploadCancel?.()}
-                  note="Keep this page open while your recording is uploaded."
+                  note="Keep this page open while your recording is uploaded and transcribed."
                 />
               ) : null}
 
@@ -766,20 +843,19 @@ export function SermonForm({
                   setMediaFile(pickedFile);
                   setDragDropNotice(null);
 
-                  // Same auto-fill as the drop path.
+                  // Same auto-fill + immediate-upload as the drop path.
                   if (pickedFile) {
                     handleFileDropped(pickedFile);
                   }
                 }}
                 className="sr-only"
-                required={values.sourceType === "upload"}
+                required={!isUploadInProgress && values.sourceType === "upload"}
               />
 
               <p className="mt-2 text-xs leading-5 text-stone-500">
-                Tip: you can also drag an audio or video recording
-                anywhere on this page to add it. The file is only
-                stored in browser state for now; direct storage
-                upload will be added with the API.
+                Tip: drag a recording anywhere on this page.
+                Upload and transcription start immediately so
+                you can fill out the rest while it runs.
               </p>
 
               {dragDropNotice ? (
@@ -847,34 +923,69 @@ export function SermonForm({
   <p className="mt-2 text-sm leading-6 text-stone-600">
     {values.sourceType === "transcript"
       ? "Paste the completed sermon transcript below."
-      : "Paste an existing transcript to skip automatic transcription. You can review and edit it after creating the sermon."}
+      : isTranscribing
+        ? "Your recording is being transcribed now. The text will appear here automatically."
+        : "Paste an existing transcript to skip automatic transcription. You can review and edit it after creating the sermon."}
   </p>
 
-  <textarea
-    id="transcript"
-    value={values.transcript ?? ""}
-    onChange={(event) =>
-      updateField("transcript", event.target.value)
-    }
-    className="mt-3 min-h-64 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#012f11]"
-    placeholder={
-      values.sourceType === "transcript"
-        ? "Paste the sermon transcript here..."
-        : "Optional: paste an existing transcript here..."
-    }
-    required={values.sourceType === "transcript"}
-  />
+  {isTranscribing ? (
+    <div className="relative mt-3">
+      <div className="min-h-64 w-full rounded-2xl border border-[#ddd8c8] bg-stone-50/60 px-4 py-3 text-sm leading-6 text-stone-500 outline-none" />
+      <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
+        <div className="flex items-center gap-3 rounded-2xl bg-white/80 px-5 py-3 shadow-sm backdrop-blur-sm">
+          <svg
+            className="h-5 w-5 animate-spin text-[#012f11]"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+          >
+            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
+            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
+          </svg>
+          <span className="text-sm font-medium text-[#012f11]">
+            Transcribing your recording…
+          </span>
+        </div>
+      </div>
+    </div>
+  ) : (
+    <textarea
+      id="transcript"
+      value={displayedTranscript}
+      onChange={(event) => {
+        // When the user edits the auto-transcript, write it into values
+        // (which may have been autoTranscript-derived until now).
+        updateField("transcript", event.target.value);
+      }}
+      className={cn(
+        "mt-3 min-h-64 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#012f11]",
+        autoTranscript
+          ? "border-[#012f11] ring-1 ring-green-200"
+          : "",
+      )}
+      placeholder={
+        values.sourceType === "transcript"
+          ? "Paste the sermon transcript here…"
+          : "Optional: paste an existing transcript here…"
+      }
+      required={values.sourceType === "transcript"}
+    />
+  )}
 
   <div className="mt-2 flex flex-col gap-1 text-xs text-stone-500 sm:flex-row sm:items-center sm:justify-between">
     <p>
-      {values.sourceType === "transcript"
-        ? "A transcript is required for this source."
-        : "When provided, After Sunday will use this transcript instead of creating a new one."}
+      {autoTranscript
+        ? "Your recording has been transcribed. Review and edit as needed."
+        : isTranscribing
+          ? "Transcription is running — it will appear above when ready."
+          : values.sourceType === "transcript"
+            ? "A transcript is required for this source."
+            : "When provided, After Sunday will use this transcript instead of creating a new one."}
     </p>
 
     <p className="shrink-0">
       {
-        (values.transcript ?? "")
+        displayedTranscript
           .trim()
           .split(/\s+/)
           .filter(Boolean).length
@@ -882,6 +993,16 @@ export function SermonForm({
       words
     </p>
   </div>
+
+  {autoTranscript ? (
+    <p
+      role="status"
+      className="mt-2 text-xs font-medium text-green-800"
+    >
+      Transcription complete! You can view and edit the full
+      text above, then explore the AI Draft in the workspace.
+    </p>
+  ) : null}
 </div>
 
         </div>
@@ -896,14 +1017,18 @@ export function SermonForm({
           Cancel
         </Link>
 
-        <Button type="submit" disabled={isSubmitting || Boolean(upload)}>
+        <Button type="submit" disabled={isSubmitting}>
           {isSubmitting
             ? isEdit
               ? "Saving..."
-              : "Creating..."
+              : isUploadInProgress
+                ? "Saving..."
+                : "Creating..."
             : isEdit
               ? "Save Changes"
-              : "Create Sermon"}
+              : isUploadInProgress
+                ? "Save & Continue"
+                : "Create Sermon"}
         </Button>
       </div>
       </form>

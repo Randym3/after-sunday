@@ -1,3 +1,5 @@
+import asyncio
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
@@ -5,8 +7,30 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import members, sermons
+from app.services.transcription import MockTranscriptionProvider, run_transcription_worker
 
-app = FastAPI(title="After Sunday API")
+_transcription_task: asyncio.Task | None = None
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    """Start the background transcription worker when the server boots."""
+    global _transcription_task
+    provider = MockTranscriptionProvider(delay_seconds=4.0)
+    _transcription_task = asyncio.create_task(
+        run_transcription_worker(provider, poll_interval=2.0)
+    )
+    yield
+    # Shutdown: cancel the worker and let it finish cleanly.
+    if _transcription_task is not None:
+        _transcription_task.cancel()
+        try:
+            await _transcription_task
+        except asyncio.CancelledError:
+            pass
+
+
+app = FastAPI(title="After Sunday API", lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,

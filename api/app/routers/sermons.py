@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user_uuid
 from app.db import get_db
 from app.models.sermon import Sermon
+from app.models.transcription_job import TranscriptionJob
 from app.schemas.sermon import SermonCreate, SermonRead, SermonUpdate, TranscriptUpdate
 from app.storage import get_storage
 
@@ -231,6 +232,18 @@ def upload_complete(
         )
 
     sermon.transcript_status = "queued"
+
+    # Create a transcription job so the background worker picks it up.
+    existing_job = db.get(TranscriptionJob, sermon.id)
+    if existing_job is None:
+        job = TranscriptionJob(
+            id=sermon.id,
+            sermon_id=sermon.id,
+            provider="mock",
+            status="queued",
+        )
+        db.add(job)
+
     db.commit()
     db.refresh(sermon)
     return sermon
