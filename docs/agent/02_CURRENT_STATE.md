@@ -1,6 +1,6 @@
 # After Sunday — Current Implementation State
 
-Agents must inspect the repository to confirm exact implementation details before editing. This file was last verified against the repo on 2026-08-08.
+Agents must inspect the repository to confirm exact implementation details before editing. This file was last verified against the repo on 2026-08-10.
 
 ## Repository
 
@@ -35,6 +35,7 @@ Pages that exist:
 /app/sermons/new
 /app/sermons/[sermonId]
 /app/members
+/app/members/[memberId]
 ```
 
 The following routes are referenced in the sidebar (`web/src/lib/constants/navigation.ts`) but are **empty directories with no page.tsx** — visiting them 404s:
@@ -45,11 +46,9 @@ The following routes are referenced in the sidebar (`web/src/lib/constants/navig
 /app/settings
 ```
 
-The sidebar labels Members (was Recipients) and points at `/app/members`; the old empty `/app/recipients` directory was removed.
-
 The protected layout (`web/src/app/(protected)/app/layout.tsx`) checks Supabase claims via `supabase.auth.getClaims()` and redirects unauthenticated users to `/login`.
 
-Authentication (signup, login, logout) is real and wired to Supabase via `web/src/lib/supabase/{client,server,proxy}.ts`.
+Authentication (signup, login, logout, forgot-password, reset-password) is real and wired to Supabase via `web/src/lib/supabase/{client,server,proxy}.ts`. The reset flow lives at `/forgot-password` and `/reset-password` with a "Forgot password?" link on the login form.
 
 ## Visual Direction
 
@@ -59,6 +58,8 @@ Authentication (signup, login, logout) is real and wired to Supabase via `web/sr
 - rounded cards
 - editorial typography
 - calm SaaS layout
+- dashboard shows stat cards (Sermons, Drafts needing review, Members) and a Create Sermon CTA
+- global `cursor: pointer` for all buttons/links/selects/radios (disabled controls get `not-allowed`), set in `globals.css`
 
 ## Sermon Model
 
@@ -101,82 +102,49 @@ sent
 
 Defined in `web/src/types/sermon.ts` exactly as above.
 
-## Create Sermon Form
+## Sermon Form (create + edit share one component)
 
-`web/src/components/sermons/SermonForm.tsx` supports:
+`web/src/components/sermons/SermonForm.tsx` is used for both creating and editing sermons:
 
-```txt
-Upload Recording
-YouTube
-Paste Transcript
-```
+- **Create** (`/app/sermons/new`, via `CreateSermonFlow`): submits to `POST /sermons`; for upload sources it then runs the chunked upload (progress bar appears inline in the source card, Create button disabled until it finishes).
+- **Edit** (`/app/sermons/[id]`, via `SermonWorkspace`): renders the same form pre-filled from the existing sermon, with a **Save Changes** button. Editing metadata (title/preacher/scripture/date/source) silently clears existing AI follow-up drafts and resets `aiDraftStatus`/`emailStatus` to `not_started` with an inline confirmation.
 
-Upload:
-- accepts a browser `File`
-- no real upload occurs
-- optional transcript allowed
+### Source types
 
-YouTube:
-- collects URL
-- optional transcript allowed
-- no real YouTube integration yet
+- **Upload recording**: drop-zone or file picker (MP3/M4A/WAV/MP4/WebM). Dragging a file anywhere on the page shows a full-screen "Drop to add your recording" overlay (`useRecordingFileDrop.ts`); releasing attaches it and auto-selects Upload.
+  - **Auto-fill on drop/pick (create mode only)**: empty Sermon title is filled from the file name (extension stripped, `_`/`-` → spaces); empty Date preached is filled from the file's creation date (`File.lastModified`). Both fields briefly flash `bg-green-50` (quick fade in/out) so the user sees what was filled, and a notice mentions "Title and date were prefilled from the file."
+- **YouTube**: collects a URL; no YouTube integration yet.
+- **Paste transcript**: transcript required.
 
-Paste Transcript:
-- transcript required
+Validation is client-side with `alert()` for errors. The Cancel button returns to `/app/sermons` (create) or the sermon page (edit).
 
-Validation is client-side only and currently uses `alert()` for errors. The Cancel button links back to `/app/sermons`.
+## Sermon Workspace (edit page)
 
-Drag-and-drop: dragging a file anywhere over the page shows a full-screen "Drop to add your recording" overlay; releasing an audio/video file anywhere attaches it to the recording and auto-selects the Upload source. Non-media files are rejected with an inline notice. The window-level drag listeners live in `web/src/components/sermons/useRecordingFileDrop.ts`.
+`web/src/components/sermons/SermonWorkspace.tsx` has two tabs with a fade transition:
 
-## Mock Create Flow
-
-`web/src/components/sermons/CreateSermonFlow.tsx` derives the initial transcript status:
-
-```txt
-Upload + transcript      -> ready
-Upload, no transcript    -> processing
-YouTube + transcript     -> ready
-YouTube, no transcript   -> queued
-Paste Transcript         -> ready
-```
-
-It stores a mock sermon in `sessionStorage` under:
-
-```txt
-after-sunday:demo-sermon
-```
-
-The actual media `File` is not stored. Only serializable metadata such as filename is stored.
-
-The flow redirects to `/app/sermons/demo`.
-
-**Pasted-transcript source is no longer mocked.** As of 2026-08-08 (backend slice, `08_BACKEND_FIRST_SLICE.md`), `CreateSermonFlow` `POST`s transcript-source sermons to FastAPI, gets back a real UUID, and redirects to `/app/sermons/<id>`. Upload and YouTube sources still take the `sessionStorage`/`demo` path above until the media slice.
-
-## Sermon Workspace
-
-`web/src/components/sermons/SermonWorkspace.tsx` can display:
-
-- sermon title
-- preacher
-- scripture
-- preached date
-- source
-- filename or YouTube URL
-- transcript status
-- transcript editor (with live word count)
-
-State management depends on the sermon id:
-
-- `sermonId === "demo"` (upload/YouTube mock): the stored sermon in `sessionStorage` is the single source of truth. The workspace subscribes to it with `useSyncExternalStore` (no effect-driven load), and every edit writes through to storage immediately. The Save buttons confirm the current state rather than being the only way to persist.
-- any other id (persisted sermon): the workspace loads it via `GET /sermons/{id}` on mount, and **Save Transcript** `PATCH`es `/sermons/{id}/transcript`. Follow-up draft/approval state is browser-local in this slice (mock AI generation is unchanged) and does not persist across reloads.
+1. **Sermon Details** — the shared `SermonForm` (all fields editable, including source type + source URL/filename and transcript).
+2. **AI Draft** — read-only transcript in italics (finalized in the Details tab), follow-up status card, `FollowUpEditor` + `EmailPreview` side by side, and the generate → edit → approve workflow.
 
 Behavior notes:
 
-- If `sessionStorage` is empty and the id is `demo` (e.g., visiting `/app/sermons/demo` directly), the workspace renders a hardcoded `fallbackSermon` ("The Good Shepherd", Psalm 23, `sunday-sermon.mp4`, status `processing`).
-- A persisted id that does not exist or belongs to another user renders an "Unable to load this sermon" error state (the API returns 404).
-- For mocked non-ready transcripts, a **Mark Transcript Ready** button injects a demo transcript and sets status to `ready`. It is styled as a secondary button with a "Prototype action — simulates transcription finishing..." caption so it is not mistaken for a production action.
-- A **Back to sermons** link sits above the workspace header; the SermonForm **Cancel** button also returns to `/app/sermons`.
-- The source card explains persistence explicitly for each source type (e.g. "Prototype only: the recording is not uploaded or saved. Only its filename is kept in this browser session.").
+- If a sermon has uploaded media, the Details tab shows an **Uploaded recording** card with file details and a YouTube-style thumbnail preview (click to play inline at the same size, native fullscreen, 150px max height while playing; audio gets a simple player). A **Change source** link reveals the full source editor, with an ✕ to close it back to the preview.
+- Follow-up draft/approval state for persisted sermons is still browser-local (mock AI generation is unchanged) and does not persist across reloads.
+- The hidden tab's content is clipped (`overflow-hidden`) so it can't extend the page and break the sticky sidebar.
+
+## List Views
+
+Both sermons and members list pages use the shared `web/src/components/ui/DataTable.tsx`:
+
+- sortable columns
+- hover highlight on rows
+- edit (pencil) and delete (trash) row actions
+- edit links open the edit page (title/name is clickable)
+- filter sidebar (right side) with pills of active filters and a clear-all option
+- delete confirmation uses the custom `ConfirmDialog` (no native `prompt`)
+
+**Sermons** (`/app/sermons`): table of title, preacher, date, statuses; wired to `GET /sermons` (fetch all, newest first); title links to the edit page.
+
+**Members** (`/app/members`): full CRUD against the backend; member roles selectable (Member, Pastor, Deacon, and more) with no role management yet; edit routes to `/app/members/[id]` like sermons.
 
 ## Follow-Up Prototype
 
@@ -194,11 +162,11 @@ Generate Follow-Up Draft
 
 The generated content is hardcoded/mock content (`buildMockFollowUp`). No AI API call occurs. The email preview (`EmailPreview.tsx`) replaces `{{ firstName }}` with "Jordan" for the member-facing preview.
 
-Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`. For the demo path, edits write through to `sessionStorage`, so unsaved edits survive navigation within the tab. For persisted sermons, the follow-up draft is held in component state only (mock generation; server persistence of drafts is a later step).
+Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`. For persisted sermons, the follow-up draft is held in component state only (mock generation; server persistence of drafts is a later step).
 
 ## Backend
 
-As of 2026-08-09, the FastAPI app implements the sermon vertical slice (`08_BACKEND_FIRST_SLICE.md`) plus member CRUD:
+The FastAPI app implements the sermon vertical slice plus member CRUD plus chunked media upload:
 
 ```txt
 GET    /                        -> status ok
@@ -206,8 +174,13 @@ GET    /health                  -> healthy
 POST   /sermons                 -> create sermon (201)
 GET    /sermons                 -> list all sermons (newest first)
 GET    /sermons/{id}            -> get one sermon
-PATCH  /sermons/{id}            -> partial update
+PATCH  /sermons/{id}            -> partial update (incl. source_type)
 PATCH  /sermons/{id}/transcript -> save transcript edits
+DELETE /sermons/{id}            -> delete sermon (+ removes media from storage)
+POST   /sermons/{id}/upload/init     -> storage key + chunk size (idempotent per file)
+POST   /sermons/{id}/upload/chunk    -> write one chunk at byte offset
+POST   /sermons/{id}/upload/complete -> flip transcript_status -> queued
+GET    /sermons/{id}/media           -> serve the file (StaticFiles mount at /media)
 POST   /members                 -> create member (201)
 GET    /members                 -> list members (alphabetical)
 GET    /members/{id}            -> get one member
@@ -216,33 +189,35 @@ DELETE /members/{id}            -> delete member
 ```
 
 - **Postgres**: local Docker container (`api/docker-compose.yml`, `postgres:16-alpine`) mapped to host port **5433** because a native Postgres 17 (EDB, launchd) already occupies 5432 on this machine. Named volume `after_sunday_pgdata`.
-- **Migrations**: Alembic (`api/alembic/`). `0001_create_sermons` creates `sermons`; `0002_create_members` creates `members` (unique email, `status` defaulting to `active`, ownership columns `created_by_user_id` NOT NULL + nullable `church_id`).
+- **Migrations**: Alembic (`api/alembic/versions/`): `0001_create_sermons`, `0002_create_members`, `0003_add_member_role`, `0004_add_media_storage_fields` (adds `media_storage_key`, `media_size_bytes`, `media_content_type` to sermons).
+- **Media storage**: `api/app/storage.py` defines a `StorageBackend` interface with a `LocalDiskBackend` writing to `api/storage/` (gitignored). Chunk requests are content-type-relaxed (dragged-in files often report `application/octet-stream`); init is idempotent so retries reuse the storage key. Production swaps in S3/R2/Supabase Storage behind the same interface.
 - **Auth**: every request requires `Authorization: Bearer <supabase access token>`; FastAPI resolves the user via Supabase's `GET /auth/v1/user` (no new dependency). **No ownership scoping** — any authenticated user can read/edit/delete any sermon or member (a deliberate dev decision after the ownership-wall removal; revisit with multi-tenancy).
 - **Models/schemas**: `api/app/models/{sermon,member}.py` (SQLAlchemy), `api/app/schemas/{sermon,member}.py` (Pydantic with camelCase aliases via `api/app/schemas/aliases.py` so the API speaks the frontend `Sermon`/`Member` types).
-- **Frontend client**: `web/src/lib/api/client.ts` (fetch wrapper attaching the bearer token, refreshing expired sessions), `web/src/lib/api/{sermons,members}.ts` (typed functions). `NEXT_PUBLIC_API_URL=http://localhost:8000` is already set.
+- **Frontend client**: `web/src/lib/api/client.ts` (fetch wrapper attaching the bearer token, refreshing expired sessions; skips the JSON content-type for FormData so multipart works), `web/src/lib/api/{sermons,members,uploads}.ts` (typed functions; `uploads.ts` drives the chunked upload with byte-level progress via XHR). `NEXT_PUBLIC_API_URL=http://localhost:8000` is already set.
 - **Config**: `api/.env` (gitignored) holds `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`; `api/.env.example` documents them.
 
 `api/requirements.txt` pre-installs alembic, SQLAlchemy, psycopg, openai, and resend. `api/app.save` is a stray draft file.
 
 ## Environment
 
-`.env.example` lives at the repository root. The actual env files are `web/.env` and `web/.env.local` (both gitignored), containing `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`.
+`.env.example` lives at the repository root. The actual env files are `web/.env` and `web/.env.local` (both gitignored), containing `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Note: `web/.env` historically held a `sb_secret_…` service-role key in the publishable-key slot; `.env.local` overrides it at runtime. A secret in a `NEXT_PUBLIC_` slot is dangerous if that file is ever committed — remove it.
 
 ## Lint / Build Status
 
-`npm run lint` and `npm run build` both pass as of 2026-08-08. The two former `SermonWorkspace.tsx` errors were resolved by the stabilization pass (`docs/agent/07_NEXT_TASK.md`): the effect-driven storage load was replaced with `useSyncExternalStore`, and the manual `useMemo` was removed in favor of an inline derivation.
+`npm run lint` and `npm run build` both pass as of 2026-08-10.
 
 ## Still Mocked
 
-- media upload / object storage
-- transcription provider
+- cloud object storage (local-disk backend is real; S3/R2/Supabase Storage is the swap-in)
+- transcription provider (upload completes with `transcript_status: queued`; nothing transcribes yet)
 - asynchronous jobs
-- YouTube OAuth/channel integration
+- YouTube OAuth/channel integration / caption import
 - real AI generation (follow-up draft is generated in-browser and, for persisted sermons, is not yet saved server-side)
+- follow-up/email server persistence
+- email sending
 - groups (deferred; members are built, groups are not needed for MVP)
 - campaign / sermon follow-up persistence and sending
-- email sending
 - analytics
 - multi-tenant church/workspace implementation (ownership exists per-user; `church_id` column is a nullable placeholder)
 
-Persisted sermons cover only the pasted-transcript source. Do not mistake frontend statuses for working backend behavior.
+Sermons created from **upload** and **YouTube** sources persist their rows and (for upload) the media file; the transcript pipeline is still to be built.

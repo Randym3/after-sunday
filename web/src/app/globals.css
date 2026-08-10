@@ -48,3 +48,4 @@ input:disabled,
 label:has(input:disabled) {
   cursor: not-allowed;
 }
+

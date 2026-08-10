@@ -4,7 +4,6 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { SermonForm } from "@/components/sermons/SermonForm";
-import { MediaUploader } from "@/components/sermons/MediaUploader";
 import { createSermon } from "@/lib/api/sermons";
 import { CreateSermonInput } from "@/types/sermon";
 
@@ -14,9 +13,7 @@ function errorMessage(error: unknown) {
     : "Something went wrong. Please try again.";
 }
 
-type Flow =
-  | { stage: "form" }
-  | { stage: "uploading"; sermonId: string; file: File };
+type Flow = { stage: "form" } | { stage: "uploading"; sermonId: string; file: File };
 
 export function CreateSermonFlow() {
   const router = useRouter();
@@ -46,17 +43,16 @@ export function CreateSermonFlow() {
     setFlow({ stage: "form" });
   }
 
-  if (flow.stage === "uploading") {
-    return (
-      <MediaUploader
-        sermonId={flow.sermonId}
-        file={flow.file}
-        onComplete={() => router.push(`/app/sermons/${flow.sermonId}`)}
-        onCancel={handleUploadCancel}
-        note="Your recording is being saved. You can see the progress above."
-      />
-    );
-  }
-
-  return <SermonForm onSubmit={handleCreateSermon} />;
+  return (
+    <SermonForm
+      onSubmit={handleCreateSermon}
+      upload={flow.stage === "uploading" ? flow : null}
+      onUploadComplete={() => {
+        if (flow.stage === "uploading") {
+          router.push(`/app/sermons/${flow.sermonId}`);
+        }
+      }}
+      onUploadCancel={handleUploadCancel}
+    />
+  );
 }

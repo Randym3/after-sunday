@@ -7,6 +7,7 @@ import {
   isAcceptedRecordingFile,
   useRecordingFileDrop,
 } from "@/components/sermons/useRecordingFileDrop";
+import { MediaUploader } from "@/components/sermons/MediaUploader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { listMembers } from "@/lib/api/members";
@@ -23,8 +24,14 @@ interface SermonFormProps {
   sermon?: Sermon;
   onSubmit?: (
     values: CreateSermonInput,
-    mediaFile: File | null
+    mediaFile: File | null,
   ) => void | Promise<void>;
+  upload?: {
+    sermonId: string;
+    file: File;
+  } | null;
+  onUploadComplete?: () => void;
+  onUploadCancel?: () => void;
 }
 
 const sourceOptions: Array<{
@@ -54,7 +61,13 @@ const sourceOptions: Array<{
   },
 ];
 
-export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
+export function SermonForm({
+  sermon,
+  onSubmit,
+  upload = null,
+  onUploadComplete,
+  onUploadCancel,
+}: SermonFormProps) {
   const isEdit = Boolean(sermon);
   const hasExistingMedia =
     isEdit &&
@@ -168,6 +181,17 @@ export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
     text: string;
     tone: "success" | "error";
   } | null>(null);
+  // Flashes the title/date fields with lime when auto-filled. Uses an inline
+  // background-color (which beats Tailwind's layered `bg-white`) and a
+  // timeout to remove it — keyframes can't paint over the utility layer.
+  const [flash, setFlash] = useState<{
+    title: boolean;
+    date: boolean;
+  }>({ title: false, date: false });
+  const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  // Guards the auto-fill/flash against re-entrancy from the input.files
+  // assignment firing a second change event for the same file.
+  const processedFileRef = useRef<File | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
 
   function handleFileDropped(file: File) {
@@ -190,10 +214,75 @@ export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
       mediaFileInputRef.current.files = dataTransfer.files;
     }
 
-    setValues((currentValues) => ({
-      ...currentValues,
-      sourceType: "upload",
-    }));
+    // Guard against re-entrancy: assigning input.files above fires a second
+    // `change` event that re-runs this handler. The ref skips the auto-fill on
+    // that second run so it can't clear the flash before it paints.
+    if (processedFileRef.current === file) {
+      setDragDropNotice({
+        text: `Recording added — ${file.name}`,
+        tone: "success",
+      });
+      return;
+    }
+    processedFileRef.current = file;
+
+    // Only auto-fill on create — never touch fields in edit mode.
+    if (!isEdit) {
+      // Derive the fill decisions from the current values BEFORE calling
+      // setValues, since React defers updater functions to the render phase.
+      const baseName = file.name.replace(/\.[^.]+$/, "");
+      const titleFromFile = baseName
+        .replace(/[_-]+/g, " ")
+        .replace(/\s+/g, " ")
+        .trim();
+      const fillTitle =
+        !!titleFromFile && !values.title?.trim();
+
+      const fillDate =
+        !values.preachedAt && file.lastModified > 0;
+
+      if (fillTitle || fillDate) {
+        setValues((currentValues) => {
+          const nextValues: CreateSermonInput = {
+            ...currentValues,
+            sourceType: "upload",
+          };
+
+          if (fillTitle && !nextValues.title?.trim()) {
+            nextValues.title = titleFromFile;
+          }
+
+          if (fillDate && !nextValues.preachedAt) {
+            const fileDate = new Date(file.lastModified);
+            const year = fileDate.getFullYear();
+            const month = String(fileDate.getMonth() + 1).padStart(2, "0");
+            const day = String(fileDate.getDate()).padStart(2, "0");
+            nextValues.preachedAt = `${year}-${month}-${day}`;
+          }
+
+          return nextValues;
+        });
+      }
+
+      if (fillTitle || fillDate) {
+        if (flashTimeoutRef.current) {
+          clearTimeout(flashTimeoutRef.current);
+        }
+
+        setFlash({ title: fillTitle, date: fillDate });
+        // Quick fade in (200ms) → fade out (200ms).
+        flashTimeoutRef.current = setTimeout(() => {
+          setFlash({ title: false, date: false });
+        }, 250);
+
+        setDragDropNotice({
+          text: `Recording added — ${file.name}. Title and date were prefilled from the file.`,
+          tone: "success",
+        });
+        return;
+      }
+    }
+
     setDragDropNotice({
       text: `Recording added — ${file.name}`,
       tone: "success",
@@ -324,6 +413,14 @@ export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
                 onChange={(event) =>
                   updateField("title", event.target.value)
                 }
+                style={
+                  flash.title
+                    ? {
+                        backgroundColor: "#f0fdf4", // bg-green-50
+                        transition: "background-color 200ms ease-out",
+                      }
+                    : undefined
+                }
                 className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
                 placeholder="The Good Shepherd"
                 required
@@ -429,6 +526,14 @@ export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
                 value={values.preachedAt}
                 onChange={(event) =>
                   updateField("preachedAt", event.target.value)
+                }
+                style={
+                  flash.date
+                    ? {
+                        backgroundColor: "#f0fdf4", // bg-green-50
+                        transition: "background-color 200ms ease-out",
+                      }
+                    : undefined
                 }
                 className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
               />
@@ -640,14 +745,31 @@ export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
                 ) : null}
               </label>
 
+              {upload ? (
+                <MediaUploader
+                  sermonId={upload.sermonId}
+                  file={upload.file}
+                  onComplete={() => onUploadComplete?.()}
+                  onCancel={() => onUploadCancel?.()}
+                  note="Keep this page open while your recording is uploaded."
+                />
+              ) : null}
+
               <input
                 id="mediaFile"
                 ref={mediaFileInputRef}
                 type="file"
                 accept=".mp3,.m4a,.wav,.mp4,.webm,audio/*,video/*"
                 onChange={(event) => {
-                  setMediaFile(event.target.files?.[0] ?? null);
+                  const pickedFile =
+                    event.target.files?.[0] ?? null;
+                  setMediaFile(pickedFile);
                   setDragDropNotice(null);
+
+                  // Same auto-fill as the drop path.
+                  if (pickedFile) {
+                    handleFileDropped(pickedFile);
+                  }
                 }}
                 className="sr-only"
                 required={values.sourceType === "upload"}
@@ -774,7 +896,7 @@ export function SermonForm({ sermon, onSubmit }: SermonFormProps) {
           Cancel
         </Link>
 
-        <Button type="submit" disabled={isSubmitting}>
+        <Button type="submit" disabled={isSubmitting || Boolean(upload)}>
           {isSubmitting
             ? isEdit
               ? "Saving..."
