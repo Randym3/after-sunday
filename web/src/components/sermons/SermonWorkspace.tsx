@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
   getSermon,
@@ -253,6 +253,49 @@ export function SermonWorkspace({
       cancelled = true;
     };
   }, [isPersistedSermon, sermonId]);
+
+  // Ref flag used by the poll below: reading a `cancelled` local inside an
+  // interval closure would capture a stale value.
+  const cancelledRef = useRef(false);
+  useEffect(() => {
+    cancelledRef.current = false;
+    return () => {
+      cancelledRef.current = true;
+    };
+  }, [sermonId, isPersistedSermon]);
+
+  // Poll while transcription is in flight so the transcript + status badge
+  // update on their own once the worker finishes (no manual reload needed).
+  useEffect(() => {
+    if (!isPersistedSermon || !persistedSermon) {
+      return;
+    }
+
+    const status = persistedSermon.transcriptStatus;
+    if (status !== "queued" && status !== "processing") {
+      return;
+    }
+
+    const pollId = setInterval(async () => {
+      try {
+        const serverSermon = await getSermon(sermonId);
+        if (cancelledRef.current) {
+          return;
+        }
+        setPersistedSermon((current) =>
+          current
+            ? mergeServerSermon(serverSermon, current)
+            : serverSermon
+        );
+      } catch {
+        // Transient failure — keep polling; the next tick may succeed.
+      }
+    }, 2000);
+
+    return () => {
+      clearInterval(pollId);
+    };
+  }, [isPersistedSermon, persistedSermon, sermonId]);
 
   function commitSermon(next: Sermon) {
     if (isPersistedSermon) {

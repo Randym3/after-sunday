@@ -178,9 +178,20 @@ export function SermonForm({
     transcript: sermon?.transcript ?? "",
   }));
 
-  // The transcript shown in the textarea: auto-transcript wins over user input.
+  // True once the user has typed in a transcript field, so their edits
+  // (including clearing it) win over the server copy below.
+  const [transcriptEdited, setTranscriptEdited] =
+    useState(false);
+
+  // The transcript shown in the textarea. Priority:
+  //   1. auto-transcript (create flow, transcription finished)
+  //   2. the user's own edits
+  //   3. the sermon prop (which may arrive later than mount via polling)
   const displayedTranscript: string =
-    autoTranscript ?? (values.transcript ?? "");
+    autoTranscript ??
+    (transcriptEdited
+      ? (values.transcript ?? "")
+      : (values.transcript?.trim() || sermon?.transcript || ""));
 
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -674,7 +685,7 @@ export function SermonForm({
 
                   <span className="text-xs text-stone-500">
                     {
-                      (values.transcript ?? "")
+                      displayedTranscript
                         .trim()
                         .split(/\s+/)
                         .filter(Boolean).length
@@ -685,10 +696,11 @@ export function SermonForm({
 
                 <textarea
                   id="transcript"
-                  value={values.transcript ?? ""}
-                  onChange={(event) =>
-                    updateField("transcript", event.target.value)
-                  }
+                  value={displayedTranscript}
+                  onChange={(event) => {
+                    setTranscriptEdited(true);
+                    updateField("transcript", event.target.value);
+                  }}
                   className="mt-2 min-h-64 w-full flex-1 resize-y rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#012f11]"
                   placeholder="No transcript yet — it will appear here after transcription."
                 />
@@ -953,6 +965,7 @@ export function SermonForm({
       id="transcript"
       value={displayedTranscript}
       onChange={(event) => {
+        setTranscriptEdited(true);
         // When the user edits the auto-transcript, write it into values
         // (which may have been autoTranscript-derived until now).
         updateField("transcript", event.target.value);
