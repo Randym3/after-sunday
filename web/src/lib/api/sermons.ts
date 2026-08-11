@@ -61,6 +61,14 @@ export function updateTranscript(
   });
 }
 
+export function generateFollowUp(
+  sermonId: string
+): Promise<Sermon> {
+  return apiFetch<Sermon>(`/sermons/${sermonId}/follow-up/generate`, {
+    method: "POST",
+  });
+}
+
 export function deleteSermon(sermonId: string): Promise<Sermon> {
   return apiFetch<Sermon>(`/sermons/${sermonId}`, {
     method: "DELETE",

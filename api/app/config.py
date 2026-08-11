@@ -17,6 +17,13 @@ class Settings(BaseSettings):
     # Modulate Velma Transcribe API key. When set, real transcription runs
     # through Velma; when empty, the mock provider is used (dev only).
     modulate_api_key: str = ""
+    # Text LLM used for follow-up draft generation. Any OpenAI-compatible
+    # endpoint works (Groq, OpenRouter, GitHub Models, NVIDIA NIM, ...) via
+    # the openai SDK's base_url. When llm_api_key is empty, the mock provider
+    # is used (dev only).
+    llm_base_url: str = "https://api.groq.com/openai/v1"
+    llm_api_key: str = ""
+    llm_model: str = "llama-3.3-70b-versatile"
 
 
 @lru_cache

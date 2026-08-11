@@ -10,6 +10,7 @@ from app.db import get_db
 from app.models.sermon import Sermon
 from app.models.transcription_job import TranscriptionJob
 from app.schemas.sermon import BulkDeleteRequest, SermonCreate, SermonRead, SermonUpdate, TranscriptUpdate
+from app.services.follow_up import build_follow_up_provider
 from app.services.transcription import build_provider
 from app.storage import get_storage
 
@@ -83,6 +84,53 @@ def update_sermon(
     sermon = _get_sermon_or_404(db, sermon_id)
     for field, value in payload.model_dump(exclude_unset=True).items():
         setattr(sermon, field, value)
+    db.commit()
+    db.refresh(sermon)
+    return sermon
+
+
+@router.post("/{sermon_id}/follow-up/generate", response_model=SermonRead)
+async def generate_follow_up(
+    sermon_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    """Generate an AI follow-up draft from the reviewed transcript.
+
+    Requires a ready transcript. Persists the draft on the sermon row with
+    ai_draft_status='draft_ready' so it survives reloads and can be edited,
+    saved, and approved via the regular PATCH endpoint.
+    """
+    sermon = _get_sermon_or_404(db, sermon_id)
+
+    if (
+        sermon.transcript_status != "ready"
+        or not sermon.transcript
+        or not sermon.transcript.strip()
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="A reviewed transcript is required before generating a follow-up draft.",
+        )
+
+    provider = build_follow_up_provider()
+    try:
+        draft = await provider.generate(
+            title=sermon.title,
+            preacher=sermon.preacher,
+            scripture_reference=sermon.scripture_reference,
+            transcript=sermon.transcript,
+        )
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Follow-up generation failed: {exc}",
+        ) from exc
+
+    sermon.follow_up_subject = draft["subject"]
+    sermon.follow_up_body = draft["body"]
+    sermon.ai_draft_status = "draft_ready"
+    sermon.email_status = "draft"
     db.commit()
     db.refresh(sermon)
     return sermon

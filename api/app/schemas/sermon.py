@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from app.schemas.aliases import to_camel
 
@@ -25,6 +25,12 @@ class SermonCreate(BaseModel):
     youtube_url: str | None = None
     transcript: str | None = None
 
+    @field_validator("preached_at", mode="before")
+    @classmethod
+    def empty_date_to_none(cls, value):
+        # The create form sends "" for an empty date field.
+        return value if value not in ("", None) else None
+
 
 class SermonUpdate(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
@@ -45,6 +51,12 @@ class SermonUpdate(BaseModel):
     follow_up_body: str | None = None
     ai_draft_status: AiDraftStatus | None = None
     email_status: EmailStatus | None = None
+
+    @field_validator("preached_at", mode="before")
+    @classmethod
+    def empty_date_to_none(cls, value):
+        # The edit form sends "" for an empty date field.
+        return value if value not in ("", None) else None
 
 
 class BulkDeleteRequest(BaseModel):

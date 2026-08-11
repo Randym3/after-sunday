@@ -93,9 +93,15 @@ Remaining: store the raw `utterances` JSON on the job row so a future "click a p
 
 ## Phase 7 — Real Follow-Up Generation
 
-Replace mock generation with FastAPI + AI provider.
+Status: complete (2026-08-10). Real follow-up generation is wired end-to-end:
 
-Use reviewed transcript as input.
+- `api/app/services/follow_up.py` — `FollowUpProvider` abstraction with a mock and an OpenAI-compatible provider (Groq by default, configurable base URL so OpenRouter / GitHub Models / NVIDIA NIM / local servers are a config swap — no new dependencies; `openai` was already in requirements). Uses `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` from `api/.env`; falls back to mock when no key (dev only).
+- `POST /sermons/{id}/follow-up/generate` — validates a `ready` transcript (409 otherwise), calls the provider with title/preacher/scripture/transcript, and persists `follow_up_subject` / `follow_up_body` with `ai_draft_status=draft_ready` and `email_status=draft` on the sermon row (survives reloads).
+- Workspace: Generate / Save Draft / Approve are real API calls (`PATCH` persists drafts and approval); the browser-local mock only remains for the legacy `demo` path.
+
+Provider is swappable at runtime via env vars; free tiers (Groq 1,000 req/day) are ample for church volume. See `docs/agent/04_ROADMAP.md` notes and the free-LLM-API comparison in the agent thread.
+
+Remaining in this phase (deferred): per-version draft history, and storing which provider/model generated a draft.
 
 ## Phase 8 — YouTube Integration
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 
 import {
+  generateFollowUp as generateFollowUpApi,
   getSermon,
   updateSermon,
 } from "@/lib/api/sermons";
@@ -207,6 +208,7 @@ export function SermonWorkspace({
   sermonId,
 }: SermonWorkspaceProps) {
   const [followUpMessage, setFollowUpMessage] = useState("");
+  const [followUpError, setFollowUpError] = useState("");
   const [detailsMessage, setDetailsMessage] = useState("");
   const [tab, setTab] = useState<"details" | "ai">("details");
 
@@ -350,26 +352,48 @@ export function SermonWorkspace({
       return;
     }
 
+    setFollowUpMessage("");
+    setFollowUpError("");
+
     commitSermon({
       ...sermon,
       aiDraftStatus: "generating",
     });
 
-    setFollowUpMessage("");
+    if (!isPersistedSermon) {
+      // Demo path (sessionStorage) — keep the local mock.
+      await new Promise((resolve) => {
+        window.setTimeout(resolve, 700);
+      });
 
-    await new Promise((resolve) => {
-      window.setTimeout(resolve, 700);
-    });
+      const draft = buildMockFollowUp(sermon);
 
-    const draft = buildMockFollowUp(sermon);
+      commitSermon({
+        ...sermon,
+        followUpSubject: draft.subject,
+        followUpBody: draft.body,
+        aiDraftStatus: "draft_ready",
+        emailStatus: "draft",
+      });
+      return;
+    }
 
-    commitSermon({
-      ...sermon,
-      followUpSubject: draft.subject,
-      followUpBody: draft.body,
-      aiDraftStatus: "draft_ready",
-      emailStatus: "draft",
-    });
+    try {
+      const serverSermon = await generateFollowUpApi(sermonId);
+      setPersistedSermon(serverSermon);
+    } catch (error) {
+      // Back out of the "generating" state so the button can be retried.
+      setPersistedSermon((current) =>
+        current
+          ? { ...current, aiDraftStatus: "not_started" }
+          : current,
+      );
+      setFollowUpError(
+        error instanceof Error
+          ? error.message
+          : "Unable to generate the follow-up draft.",
+      );
+    }
   }
 
   function updateFollowUpSubject(subject: string) {
@@ -406,16 +430,34 @@ export function SermonWorkspace({
     setFollowUpMessage("");
   }
 
-  function saveFollowUp() {
-    commitSermon(sermon);
-    setFollowUpMessage(
-      isPersistedSermon
-        ? "Draft saved in this browser session."
-        : "Draft saved."
-    );
+  async function saveFollowUp() {
+    if (!isPersistedSermon) {
+      commitSermon(sermon);
+      setFollowUpMessage("Draft saved.");
+      return;
+    }
+
+    setFollowUpError("");
+
+    try {
+      const serverSermon = await updateSermon(sermonId, {
+        followUpSubject: sermon.followUpSubject || null,
+        followUpBody: sermon.followUpBody || null,
+        aiDraftStatus: sermon.aiDraftStatus,
+        emailStatus: sermon.emailStatus,
+      });
+      setPersistedSermon(serverSermon);
+      setFollowUpMessage("Draft saved.");
+    } catch (error) {
+      setFollowUpError(
+        error instanceof Error
+          ? error.message
+          : "Unable to save the draft.",
+      );
+    }
   }
 
-  function approveFollowUp() {
+  async function approveFollowUp() {
     if (
       !sermon.followUpSubject?.trim() ||
       !sermon.followUpBody?.trim()
@@ -423,13 +465,66 @@ export function SermonWorkspace({
       return;
     }
 
+    if (!isPersistedSermon) {
+      commitSermon({
+        ...sermon,
+        aiDraftStatus: "approved",
+        emailStatus: "ready",
+      });
+      setFollowUpMessage("Draft approved.");
+      return;
+    }
+
+    setFollowUpError("");
+
+    try {
+      const serverSermon = await updateSermon(sermonId, {
+        followUpSubject: sermon.followUpSubject || null,
+        followUpBody: sermon.followUpBody || null,
+        aiDraftStatus: "approved",
+        emailStatus: "ready",
+      });
+      setPersistedSermon(serverSermon);
+      setFollowUpMessage("Draft approved.");
+    } catch (error) {
+      setFollowUpError(
+        error instanceof Error
+          ? error.message
+          : "Unable to approve the draft.",
+      );
+    }
+  }
+
+  async function rejectDraft() {
+    setFollowUpError("");
+
     commitSermon({
       ...sermon,
-      aiDraftStatus: "approved",
-      emailStatus: "ready",
+      followUpSubject: null,
+      followUpBody: null,
+      aiDraftStatus: "not_started",
+      emailStatus: "not_started",
     });
 
-    setFollowUpMessage("Draft approved.");
+    if (isPersistedSermon) {
+      try {
+        await updateSermon(sermonId, {
+          followUpSubject: null,
+          followUpBody: null,
+          aiDraftStatus: "not_started",
+          emailStatus: "not_started",
+        });
+      } catch (error) {
+        setFollowUpError(
+          error instanceof Error
+            ? error.message
+            : "Unable to clear the draft.",
+        );
+        return;
+      }
+    }
+
+    setFollowUpMessage("Draft rejected. You can generate a new one.");
   }
 
   const status = transcriptStatusConfig[sermon.transcriptStatus];
@@ -575,8 +670,13 @@ export function SermonWorkspace({
                   sermonId,
                   patch,
                 );
+                // When metadata edits cleared the drafts server-side, take
+                // the server response as truth — mergeServerSermon would
+                // otherwise restore the stale local draft.
                 commitSermon(
-                  mergeServerSermon(serverSermon, sermon),
+                  wasDrafted && hasMetaChange
+                    ? serverSermon
+                    : mergeServerSermon(serverSermon, sermon),
                 );
 
                 setDetailsMessage(
@@ -693,10 +793,12 @@ export function SermonWorkspace({
               </div>
             ) : (
               <div className="pt-6">
-                <p className="whitespace-pre-wrap italic leading-7 text-stone-600">
-                  {sermon.transcript?.trim() ||
-                    "No transcript available yet. Switch to the Sermon Details tab to add or edit the transcript."}
-                </p>
+                <div className="max-h-72 overflow-y-auto pr-3">
+                  <p className="whitespace-pre-wrap italic leading-7 text-stone-600">
+                    {sermon.transcript?.trim() ||
+                      "No transcript available yet. Switch to the Sermon Details tab to add or edit the transcript."}
+                  </p>
+                </div>
 
                 <div className="mt-4 text-xs text-stone-500">
                   <span>{transcriptWordCount} words</span>
@@ -745,11 +847,13 @@ export function SermonWorkspace({
               status={sermon.aiDraftStatus}
               canGenerate={canGenerateFollowUp}
               message={followUpMessage}
+              error={followUpError}
               onGenerate={generateFollowUp}
               onSubjectChange={updateFollowUpSubject}
               onBodyChange={updateFollowUpBody}
               onSave={saveFollowUp}
               onApprove={approveFollowUp}
+              onReject={rejectDraft}
             />
 
             <EmailPreview

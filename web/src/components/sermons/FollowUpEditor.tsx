@@ -3,7 +3,9 @@
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { AiDraftStatus } from "@/types/sermon";
+import { useState } from "react";
 
 interface FollowUpEditorProps {
   subject: string;
@@ -11,11 +13,13 @@ interface FollowUpEditorProps {
   status: AiDraftStatus;
   canGenerate: boolean;
   message?: string;
+  error?: string;
   onGenerate: () => void | Promise<void>;
   onSubjectChange: (subject: string) => void;
   onBodyChange: (body: string) => void;
   onSave: () => void;
   onApprove: () => void;
+  onReject?: () => void | Promise<void>;
 }
 
 const statusConfig: Record<
@@ -112,15 +116,18 @@ export function FollowUpEditor({
   status,
   canGenerate,
   message,
+  error,
   onGenerate,
   onSubjectChange,
   onBodyChange,
   onSave,
   onApprove,
+  onReject,
 }: FollowUpEditorProps) {
   const statusDetails = statusConfig[status];
   const hasDraft = Boolean(subject.trim() || body.trim());
   const canApprove = Boolean(subject.trim() && body.trim());
+  const [rejectOpen, setRejectOpen] = useState(false);
 
   return (
     <Card className="h-full">
@@ -171,8 +178,8 @@ export function FollowUpEditor({
             </p>
           ) : (
             <p className="mt-3 text-xs text-stone-500">
-              This currently inserts mocked content. Real AI generation
-              will come through FastAPI later.
+              The draft is generated from the reviewed transcript and can
+              be edited before approval.
             </p>
           )}
         </div>
@@ -220,11 +227,43 @@ export function FollowUpEditor({
           </div>
 
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <p className="text-sm font-medium text-green-800">
-              {message}
-            </p>
+            <div className="min-w-0">
+              {error ? (
+                <p className="break-words text-sm font-medium text-red-700">
+                  {error}
+                </p>
+              ) : message ? (
+                <p className="text-sm font-medium text-green-800">
+                  {message}
+                </p>
+              ) : null}
+            </div>
 
-            <div className="flex flex-col gap-3 sm:flex-row">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-center">
+              {onReject ? (
+                <>
+                  <Button
+                    type="button"
+                    variant="secondary"
+                    onClick={() => setRejectOpen(true)}
+                  >
+                    Reject Draft
+                  </Button>
+
+                  <ConfirmDialog
+                    open={rejectOpen}
+                    onCancel={() => setRejectOpen(false)}
+                    onConfirm={() => {
+                      onReject();
+                      setRejectOpen(false);
+                    }}
+                    title="Reject this draft?"
+                    description="This will clear the current follow-up draft. You can generate a new one afterwards."
+                    confirmLabel="Yes, reject"
+                  />
+                </>
+              ) : null}
+
               <Button
                 type="button"
                 variant="secondary"
