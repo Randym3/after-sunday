@@ -679,7 +679,7 @@ export function SermonWorkspace({
               </div>
             ) : (
               <div className="pt-6">
-                <p className="italic leading-7 text-stone-600">
+                <p className="whitespace-pre-wrap italic leading-7 text-stone-600">
                   {sermon.transcript?.trim() ||
                     "No transcript available yet. Switch to the Sermon Details tab to add or edit the transcript."}
                 </p>

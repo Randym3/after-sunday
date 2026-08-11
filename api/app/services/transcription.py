@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import abc
 import asyncio
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -42,6 +43,14 @@ Congregation: Amen.
 
 VELMA_BATCH_URL = "https://platform.modulate.ai/api/velma-2-stt-batch"
 
+# Velma's utterances can be very long (tens of seconds of continuous
+# speech), so paragraph breaks are driven by sentence count rather than
+# utterance boundaries. These are the tuning knobs.
+SENTENCES_PER_PARAGRAPH = 3
+# A silence gap at least this long between consecutive utterances also
+# starts a new paragraph (a genuine dramatic pause).
+PAUSE_PARAGRAPH_THRESHOLD_MS = 1500
+
 
 class TranscriptionProvider(abc.ABC):
     """Interface for turning an audio/video file into text."""
@@ -78,6 +87,80 @@ class MockTranscriptionProvider(TranscriptionProvider):
         return MOCK_CANNED_TRANSCRIPT
 
 
+def _split_sentences(text: str) -> list[str]:
+    """Split text into sentences on '.', '!' or '?' followed by whitespace."""
+    parts = re.split(r"(?<=[.!?])\s+", text.strip())
+    return [p.strip() for p in parts if p.strip()]
+
+
+def _paragraphize(utterances: list[dict]) -> str:
+    """Rebuild a transcript from Velma utterances with paragraph breaks.
+
+    Paragraphs hold up to ``SENTENCES_PER_PARAGRAPH`` sentences. A new
+    paragraph also starts on a speaker change or after a silence gap of at
+    least ``PAUSE_PARAGRAPH_THRESHOLD_MS``. Velma's utterances can be very
+    long, so sentence grouping — not utterance boundaries alone — is what
+    keeps the output readable. Returns ``""`` when there are no usable
+    utterances.
+    """
+    paragraphs: list[list[str]] = []
+    current: list[str] = []
+    prev_end_ms: int | None = None
+    prev_speaker: int | None = None
+
+    def flush() -> None:
+        nonlocal current
+        if current:
+            paragraphs.append(current)
+            current = []
+
+    for u in utterances:
+        text = (u.get("text") or "").strip()
+        if not text:
+            continue
+
+        start_ms = u.get("start_ms")
+        duration_ms = u.get("duration_ms")
+        end_ms = (
+            start_ms + duration_ms
+            if isinstance(start_ms, int) and isinstance(duration_ms, int)
+            else None
+        )
+        gap_ms = (
+            start_ms - prev_end_ms
+            if isinstance(start_ms, int) and isinstance(prev_end_ms, int)
+            else None
+        )
+        speaker = u.get("speaker")
+
+        if speaker != prev_speaker or (
+            gap_ms is not None and gap_ms >= PAUSE_PARAGRAPH_THRESHOLD_MS
+        ):
+            flush()
+
+        for sentence in _split_sentences(text):
+            if len(current) >= SENTENCES_PER_PARAGRAPH:
+                flush()
+            current.append(sentence)
+
+        prev_end_ms = end_ms
+        prev_speaker = speaker
+
+    flush()
+    return "\n\n".join(" ".join(p) for p in paragraphs)
+
+
+def _paragraphize_text(text: str) -> str:
+    """Sentence-grouped paragraphing for a plain transcript string with no
+    utterance metadata available."""
+    sentences = _split_sentences(text)
+    paragraphs = [
+        sentences[i : i + SENTENCES_PER_PARAGRAPH]
+        for i in range(0, len(sentences), SENTENCES_PER_PARAGRAPH)
+    ]
+    return "\n\n".join(" ".join(p) for p in paragraphs)
+
+
 class VelmaTranscriptionProvider(TranscriptionProvider):
     """Transcribes through Modulate's Velma Transcribe batch API.
 
@@ -85,6 +168,10 @@ class VelmaTranscriptionProvider(TranscriptionProvider):
     files can be sent as-is (no ffmpeg audio extraction needed). Speaker
     diarization is enabled by default so pastor/congregation turns come
     back labeled.
+
+    The batch response includes per-utterance timestamps; we rebuild the
+    transcript from those utterances so speaker changes and long pauses
+    become paragraph breaks (see ``_paragraphize``).
     """
 
     provider_name = "velma"
@@ -108,14 +195,18 @@ class VelmaTranscriptionProvider(TranscriptionProvider):
                 )
         response.raise_for_status()
         result = response.json()
-        text = result.get("text")
-        if not text:
+        utterances = result.get("utterances") or []
+        if utterances:
+            text = _paragraphize(utterances)
+        else:
+            text = _paragraphize_text(result.get("text") or "")
+        if not text.strip():
             raise RuntimeError(
                 f"Velma returned no transcript: {result!r}"
             )
         print(
             f"[transcribe] Velma complete for {upload_name} "
-            f"({result.get('duration_ms', '?')}ms, {len(result.get('utterances', []))} utterances)"
+            f"({result.get('duration_ms', '?')}ms, {len(utterances)} utterances)"
         )
         return text
 
