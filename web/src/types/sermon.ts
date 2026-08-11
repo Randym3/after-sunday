@@ -30,6 +30,7 @@ export interface Sermon {
   mediaContentType?: string | null;
   transcript?: string | null;
   transcriptStatus: TranscriptionStatus;
+  transcriptError?: string | null;
   followUpSubject?: string | null;
   followUpBody?: string | null;
 

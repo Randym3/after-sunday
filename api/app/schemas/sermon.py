@@ -73,6 +73,7 @@ class SermonRead(BaseModel):
     media_content_type: str | None
     transcript: str | None
     transcript_status: str
+    transcript_error: str | None
     follow_up_subject: str | None
     follow_up_body: str | None
     ai_draft_status: str

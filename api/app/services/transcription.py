@@ -284,15 +284,20 @@ async def run_transcription_worker(
                 db.commit()
                 print(f"[transcribe] Job {job.id} completed")
 
-            except Exception:
+            except Exception as exc:
                 import traceback
-                print(f"[transcribe] Job failed: {traceback.format_exc()}")
-                # Best-effort: try to mark the job as failed.
+
+                tb = traceback.format_exc()
+                print(f"[transcribe] Job failed: {tb}")
+                # Store the full traceback on the job for debugging; store a
+                # short, user-facing message on the sermon so the UI can show it.
+                err_msg = str(exc) or type(exc).__name__
                 try:
                     job.status = "failed"
-                    job.error_message = traceback.format_exc()
+                    job.error_message = tb
                     if sermon:
                         sermon.transcript_status = "failed"
+                        sermon.transcript_error = err_msg
                     db.commit()
                 except Exception:
                     print(f"[transcribe] Failed to record failure: {traceback.format_exc()}")

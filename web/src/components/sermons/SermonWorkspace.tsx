@@ -662,20 +662,34 @@ export function SermonWorkspace({
                   {status.description}
                 </p>
 
-                <div className="mt-6">
-                  <Button
-                    type="button"
-                    variant="secondary"
-                    onClick={markTranscriptReady}
-                  >
-                    Mark Transcript Ready
-                  </Button>
-                </div>
+                {sermon.transcriptStatus === "failed" &&
+                sermon.transcriptError ? (
+                  <div className="mx-auto mt-4 max-w-lg rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left">
+                    <p className="text-sm font-medium text-red-800">
+                      Error details
+                    </p>
+                    <p className="mt-1 break-words font-mono text-xs leading-5 text-red-700">
+                      {sermon.transcriptError}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="mt-6">
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={markTranscriptReady}
+                      >
+                        Mark Transcript Ready
+                      </Button>
+                    </div>
 
-                <p className="mx-auto mt-3 max-w-md text-xs leading-5 text-stone-500">
-                  Prototype action — simulates transcription
-                  finishing so you can test the follow-up flow.
-                </p>
+                    <p className="mx-auto mt-3 max-w-md text-xs leading-5 text-stone-500">
+                      Prototype action — simulates transcription
+                      finishing so you can test the follow-up flow.
+                    </p>
+                  </>
+                )}
               </div>
             ) : (
               <div className="pt-6">

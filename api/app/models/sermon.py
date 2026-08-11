@@ -48,6 +48,9 @@ class Sermon(Base):
         default="not_started",
         server_default="not_started",
     )
+    transcript_error: Mapped[str | None] = mapped_column(
+        Text, nullable=True
+    )
 
     follow_up_subject: Mapped[str | None] = mapped_column(
         String(300), nullable=True
