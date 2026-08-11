@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.routers import members, sermons
-from app.services.transcription import MockTranscriptionProvider, run_transcription_worker
+from app.services.transcription import build_provider, run_transcription_worker
 
 _transcription_task: asyncio.Task | None = None
 
@@ -16,7 +16,7 @@ _transcription_task: asyncio.Task | None = None
 async def lifespan(app: FastAPI):
     """Start the background transcription worker when the server boots."""
     global _transcription_task
-    provider = MockTranscriptionProvider(delay_seconds=4.0)
+    provider = build_provider()
     _transcription_task = asyncio.create_task(
         run_transcription_worker(provider, poll_interval=2.0)
     )

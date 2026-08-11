@@ -1,4 +1,4 @@
-"""Transcription provider abstraction + mock implementation."""
+"""Transcription provider abstraction + mock/Velma implementations."""
 
 from __future__ import annotations
 
@@ -7,8 +7,10 @@ import asyncio
 from datetime import datetime, timezone
 from pathlib import Path
 
+import httpx
 from sqlalchemy import select
 
+from app.config import get_settings
 from app.db import SessionLocal
 from app.models.sermon import Sermon
 from app.models.transcription_job import TranscriptionJob
@@ -38,13 +40,22 @@ Let's pray. Father, thank You that You are our shepherd..."
 Congregation: Amen.
 """
 
+VELMA_BATCH_URL = "https://platform.modulate.ai/api/velma-2-stt-batch"
+
 
 class TranscriptionProvider(abc.ABC):
     """Interface for turning an audio/video file into text."""
 
+    # Short identifier recorded on transcription_jobs.provider.
+    provider_name = "unknown"
+
     @abc.abstractmethod
-    async def transcribe(self, file_path: Path) -> str:
+    async def transcribe(self, file_path: Path, original_filename: str | None = None) -> str:
         """Return the full transcript of the media at *file_path*.
+
+        *original_filename* carries the user-facing name (e.g. "sermon.mp4")
+        because storage keys may lack a file extension that some providers
+        require.
 
         May raise an exception on failure; the caller is responsible for
         catching it and updating the job status to 'failed'.
@@ -55,14 +66,67 @@ class TranscriptionProvider(abc.ABC):
 class MockTranscriptionProvider(TranscriptionProvider):
     """Returns a canned transcript after a simulated processing delay (dev)."""
 
+    provider_name = "mock"
+
     def __init__(self, delay_seconds: float = 4.0) -> None:
         self._delay = delay_seconds
 
-    async def transcribe(self, file_path: Path) -> str:
+    async def transcribe(self, file_path: Path, original_filename: str | None = None) -> str:
         print(f"[transcribe] Mock started for {file_path.name} (sleep {self._delay:.1f}s)")
         await asyncio.sleep(self._delay)
         print(f"[transcribe] Mock complete for {file_path.name}")
         return MOCK_CANNED_TRANSCRIPT
+
+
+class VelmaTranscriptionProvider(TranscriptionProvider):
+    """Transcribes through Modulate's Velma Transcribe batch API.
+
+    Accepts MP3/WAV/FLAC/MP4/OGG up to 100 MB directly, so uploaded video
+    files can be sent as-is (no ffmpeg audio extraction needed). Speaker
+    diarization is enabled by default so pastor/congregation turns come
+    back labeled.
+    """
+
+    provider_name = "velma"
+
+    def __init__(self, api_key: str, url: str = VELMA_BATCH_URL) -> None:
+        self._api_key = api_key
+        self._url = url
+
+    async def transcribe(self, file_path: Path, original_filename: str | None = None) -> str:
+        # Velma validates by file extension, and storage keys are UUIDs with
+        # no extension — so send the user-facing filename when we have it.
+        upload_name = original_filename or file_path.name
+        print(f"[transcribe] Velma started for {upload_name}")
+        async with httpx.AsyncClient(timeout=600.0) as client:
+            with file_path.open("rb") as fh:
+                response = await client.post(
+                    self._url,
+                    headers={"X-API-Key": self._api_key},
+                    data={"speaker_diarization": "true"},
+                    files={"upload_file": (upload_name, fh)},
+                )
+        response.raise_for_status()
+        result = response.json()
+        text = result.get("text")
+        if not text:
+            raise RuntimeError(
+                f"Velma returned no transcript: {result!r}"
+            )
+        print(
+            f"[transcribe] Velma complete for {upload_name} "
+            f"({result.get('duration_ms', '?')}ms, {len(result.get('utterances', []))} utterances)"
+        )
+        return text
+
+
+def build_provider() -> TranscriptionProvider:
+    """Pick the real Velma provider when an API key is configured, else mock."""
+    api_key = get_settings().modulate_api_key
+    if api_key:
+        return VelmaTranscriptionProvider(api_key=api_key)
+    print("[transcribe] No MODULATE_API_KEY set — using mock provider (dev only)")
+    return MockTranscriptionProvider(delay_seconds=4.0)
 
 
 async def run_transcription_worker(
@@ -117,7 +181,7 @@ async def run_transcription_worker(
                         f"Media file not found for key {sermon.media_storage_key}"
                     )
 
-                transcript = await provider.transcribe(path)
+                transcript = await provider.transcribe(path, original_filename=sermon.media_file_name)
 
                 job.result_text = transcript
                 job.status = "completed"

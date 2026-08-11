@@ -14,6 +14,9 @@ class Settings(BaseSettings):
     )
     supabase_url: str = ""
     supabase_publishable_key: str = ""
+    # Modulate Velma Transcribe API key. When set, real transcription runs
+    # through Velma; when empty, the mock provider is used (dev only).
+    modulate_api_key: str = ""
 
 
 @lru_cache

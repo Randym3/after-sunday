@@ -10,6 +10,7 @@ from app.db import get_db
 from app.models.sermon import Sermon
 from app.models.transcription_job import TranscriptionJob
 from app.schemas.sermon import SermonCreate, SermonRead, SermonUpdate, TranscriptUpdate
+from app.services.transcription import build_provider
 from app.storage import get_storage
 
 router = APIRouter(prefix="/sermons", tags=["sermons"])
@@ -239,7 +240,7 @@ def upload_complete(
         job = TranscriptionJob(
             id=sermon.id,
             sermon_id=sermon.id,
-            provider="mock",
+            provider=build_provider().provider_name,
             status="queued",
         )
         db.add(job)
