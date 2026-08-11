@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useState } from "react";
 
-import { createMember, deleteMember, listMembers } from "@/lib/api/members";
+import { bulkDeleteMembers, createMember, deleteMember, listMembers } from "@/lib/api/members";
 import type { CreateMemberInput, Member } from "@/types/member";
 
 import { MemberForm } from "@/components/members/MemberForm";
@@ -125,6 +125,9 @@ export function MemberList() {
       editHref={(member) => `/app/members/${member.id}`}
       onDelete={async (member) => {
         await deleteMember(member.id);
+      }}
+      onBulkDelete={async (ids) => {
+        await bulkDeleteMembers(ids);
       }}
       deleteConfirmTitle={() => "Delete member?"}
       deleteConfirmDescription={(member) =>

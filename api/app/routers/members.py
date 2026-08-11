@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user_uuid
 from app.db import get_db
 from app.models.member import Member
-from app.schemas.member import MemberCreate, MemberRead, MemberUpdate
+from app.schemas.member import BulkDeleteRequest, MemberCreate, MemberRead, MemberUpdate
 
 router = APIRouter(prefix="/members", tags=["members"])
 
@@ -121,3 +121,18 @@ def delete_member(
     db.delete(member)
     db.commit()
     return member
+
+
+@router.post("/bulk-delete", response_model=dict)
+def bulk_delete_members(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    members = db.scalars(
+        select(Member).where(Member.id.in_(payload.ids))
+    ).all()
+    for member in members:
+        db.delete(member)
+    db.commit()
+    return {"deleted": len(members)}

@@ -42,6 +42,9 @@ interface DataTableProps<T> {
   deleteConfirmTitle?: (row: T) => string;
   deleteConfirmDescription?: (row: T) => string;
 
+  /** Bulk-delete selected rows. Omit to hide selection checkboxes. */
+  onBulkDelete?: (ids: string[]) => Promise<void>;
+
   errorMessage?: string;
   emptyTitle: string;
   emptyDescription: string;
@@ -118,6 +121,7 @@ export function DataTable<T>({
   onDelete,
   deleteConfirmTitle,
   deleteConfirmDescription,
+  onBulkDelete,
   errorMessage = "Could not load items.",
   emptyTitle,
   emptyDescription,
@@ -136,6 +140,11 @@ export function DataTable<T>({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<T | null>(null);
   const [retrySignal, setRetrySignal] = useState(0);
+
+  // -- bulk selection --------------------------------------------------
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkDeleteOpen, setBulkDeleteOpen] = useState(false);
+  const [bulkDeleting, setBulkDeleting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -192,7 +201,42 @@ export function DataTable<T>({
     return sortRows(filterRows(rows, filters), sort);
   }, [rows, filters, sort]);
 
-  const handleDelete = useCallback(
+  const visibleIds = useMemo(
+    () => new Set(sorted?.map(getRowId) ?? []),
+    [sorted, getRowId],
+  );
+
+  const selectedCount = useMemo(() => {
+    let n = 0;
+    selectedIds.forEach((id) => {
+      if (visibleIds.has(id)) n++;
+    });
+    return n;
+  }, [selectedIds, visibleIds]);
+
+  const isAllSelected = !!(
+    sorted && sorted.length > 0 && selectedCount === sorted.length
+  );
+
+  function toggleSelectAll() {
+    if (!sorted) return;
+    if (isAllSelected) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(sorted.map(getRowId)));
+    }
+  }
+
+  function toggleSelect(id: string) {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  }
+
+  const handleSingleDelete = useCallback(
     async (row: T) => {
       if (!onDelete) return;
       await onDelete(row);
@@ -203,6 +247,20 @@ export function DataTable<T>({
     },
     [onDelete, getRowId],
   );
+
+  async function handleBulkDelete() {
+    if (!onBulkDelete) return;
+    setBulkDeleting(true);
+    const toDelete = [...selectedIds].filter((id) => visibleIds.has(id));
+    await onBulkDelete(toDelete);
+    setBulkDeleting(false);
+    setBulkDeleteOpen(false);
+    setSelectedIds(new Set());
+    setRows(
+      (prev) =>
+        prev?.filter((r) => !selectedIds.has(getRowId(r))) ?? prev,
+    );
+  }
 
   // ---- states ----
 
@@ -297,10 +355,40 @@ export function DataTable<T>({
           ) : null}
         </div>
 
+        {/* Bulk-delete action bar */}
+        {selectedCount > 0 && onBulkDelete ? (
+          <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
+            <p className="text-sm font-medium text-red-800">
+              {selectedCount}{" "}
+              {selectedCount === 1 ? "item" : "items"} selected
+            </p>
+            <Button
+              type="button"
+              variant="danger"
+              onClick={() => setBulkDeleteOpen(true)}
+              disabled={bulkDeleting}
+            >
+              Delete selected
+            </Button>
+          </div>
+        ) : null}
+
         <Card className="overflow-hidden p-0">
           <table className="w-full text-left text-sm">
             <thead className="border-b border-stone-200 bg-stone-50">
               <tr>
+                {onBulkDelete ? (
+                  <th className="w-10 px-3 py-3">
+                    <input
+                      type="checkbox"
+                      className="h-4 w-4 rounded border-stone-300 text-[#012f11] focus:ring-[#012f11]"
+                      checked={isAllSelected}
+                      onChange={toggleSelectAll}
+                      aria-label="Select all"
+                    />
+                  </th>
+                ) : null}
+
                 {columns.map((col) => (
                   <th
                     key={col.key}
@@ -336,6 +424,18 @@ export function DataTable<T>({
                     key={id}
                     className="border-b border-stone-100 transition hover:bg-stone-100"
                   >
+                    {onBulkDelete ? (
+                      <td className="px-3 py-3">
+                        <input
+                          type="checkbox"
+                          className="h-4 w-4 rounded border-stone-300 text-[#012f11] focus:ring-[#012f11]"
+                          checked={selectedIds.has(id)}
+                          onChange={() => toggleSelect(id)}
+                          aria-label={`Select ${id}`}
+                        />
+                      </td>
+                    ) : null}
+
                     {columns.map((col) => (
                       <td
                         key={col.key}
@@ -390,8 +490,18 @@ export function DataTable<T>({
           }
           onCancel={() => setPendingDelete(null)}
           onConfirm={() => {
-            if (pendingDelete) handleDelete(pendingDelete);
+            if (pendingDelete) handleSingleDelete(pendingDelete);
           }}
+        />
+      ) : null}
+
+      {onBulkDelete ? (
+        <ConfirmDialog
+          open={bulkDeleteOpen}
+          title={`Delete ${selectedCount} ${selectedCount === 1 ? "item" : "items"}?`}
+          description={`${selectedCount} ${selectedCount === 1 ? "item will" : "items will"} be permanently deleted. This cannot be undone.`}
+          onCancel={() => setBulkDeleteOpen(false)}
+          onConfirm={handleBulkDelete}
         />
       ) : null}
     </div>

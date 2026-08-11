@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 
-import { deleteSermon, listSermons } from "@/lib/api/sermons";
+import { bulkDeleteSermons, deleteSermon, listSermons } from "@/lib/api/sermons";
 import type { Sermon } from "@/types/sermon";
 
 import { Badge } from "@/components/ui/Badge";
@@ -118,6 +118,9 @@ export function SermonList() {
       editHref={(sermon) => `/app/sermons/${sermon.id}`}
       onDelete={async (sermon) => {
         await deleteSermon(sermon.id);
+      }}
+      onBulkDelete={async (ids) => {
+        await bulkDeleteSermons(ids);
       }}
       deleteConfirmTitle={() => "Delete sermon?"}
       deleteConfirmDescription={(sermon) =>

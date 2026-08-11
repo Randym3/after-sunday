@@ -3,7 +3,7 @@ import { LogoutButton } from "@/components/auth/LogoutButton";
 
 export function AppHeader() {
   return (
-    <header className="mb-6 flex items-center justify-between rounded-full border border-[#ddd8c8] bg-[#fffdf7] px-4 py-3 lg:hidden">
+    <header className="mb-6 flex items-center justify-between border-b border-[#ddd8c8] px-4 py-3 lg:hidden">
       <Link href="/app/dashboard" className="font-semibold text-[#012f11]">
         After Sunday
       </Link>

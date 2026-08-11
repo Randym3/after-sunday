@@ -33,3 +33,10 @@ export function deleteMember(memberId: string): Promise<Member> {
     method: "DELETE",
   });
 }
+
+export function bulkDeleteMembers(ids: string[]): Promise<{deleted: number}> {
+  return apiFetch<{deleted: number}>("/members/bulk-delete", {
+    method: "POST",
+    body: JSON.stringify({ids}),
+  });
+}

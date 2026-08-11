@@ -66,3 +66,10 @@ export function deleteSermon(sermonId: string): Promise<Sermon> {
     method: "DELETE",
   });
 }
+
+export function bulkDeleteSermons(ids: string[]): Promise<{deleted: number}> {
+  return apiFetch<{deleted: number}>("/sermons/bulk-delete", {
+    method: "POST",
+    body: JSON.stringify({ids}),
+  });
+}

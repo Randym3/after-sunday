@@ -22,6 +22,10 @@ class MemberCreate(BaseModel):
     notes: str | None = None
 
 
+class BulkDeleteRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
 class MemberUpdate(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 

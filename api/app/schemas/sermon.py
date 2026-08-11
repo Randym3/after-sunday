@@ -47,6 +47,10 @@ class SermonUpdate(BaseModel):
     email_status: EmailStatus | None = None
 
 
+class BulkDeleteRequest(BaseModel):
+    ids: list[uuid.UUID]
+
+
 class TranscriptUpdate(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 

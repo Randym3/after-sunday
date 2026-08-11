@@ -9,7 +9,7 @@ from app.auth import get_current_user_uuid
 from app.db import get_db
 from app.models.sermon import Sermon
 from app.models.transcription_job import TranscriptionJob
-from app.schemas.sermon import SermonCreate, SermonRead, SermonUpdate, TranscriptUpdate
+from app.schemas.sermon import BulkDeleteRequest, SermonCreate, SermonRead, SermonUpdate, TranscriptUpdate
 from app.services.transcription import build_provider
 from app.storage import get_storage
 
@@ -117,6 +117,23 @@ def delete_sermon(
     if sermon.media_storage_key:
         get_storage().delete(sermon.media_storage_key)
     return sermon
+
+
+@router.post("/bulk-delete", response_model=dict)
+def bulk_delete_sermons(
+    payload: BulkDeleteRequest,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    sermons = db.scalars(
+        select(Sermon).where(Sermon.id.in_(payload.ids))
+    ).all()
+    for sermon in sermons:
+        if sermon.media_storage_key:
+            get_storage().delete(sermon.media_storage_key)
+        db.delete(sermon)
+    db.commit()
+    return {"deleted": len(sermons)}
 
 
 # ── media upload (chunked) ────────────────────────────────────────────────
