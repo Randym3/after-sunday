@@ -22,6 +22,7 @@ export interface Member {
   status: MemberStatus;
   role: MemberRole;
   notes?: string | null;
+  groupIds: string[];
   createdAt: string;
   updatedAt: string;
 }
@@ -34,4 +35,5 @@ export interface CreateMemberInput {
   status?: MemberStatus;
   role?: MemberRole;
   notes?: string;
+  groupIds?: string[];
 }
