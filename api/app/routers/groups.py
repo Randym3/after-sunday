@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session
 from app.auth import get_current_user_uuid
 from app.db import get_db
 from app.models.group import Group, GroupMember
+from app.models.member import Member
 from app.schemas.group import (
     BulkDeleteRequest,
     GroupCreate,
@@ -14,6 +15,7 @@ from app.schemas.group import (
     GroupUpdate,
     MemberIdsRequest,
 )
+from app.schemas.member import MemberRead
 
 router = APIRouter(prefix="/groups", tags=["groups"])
 
@@ -159,3 +161,68 @@ def delete_group(
     db.delete(group)
     db.commit()
     return _to_read(group, 0)
+
+
+@router.get("/{group_id}/members", response_model=list[MemberRead])
+def list_group_members(
+    group_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    _get_group_or_404(db, group_id)
+    return db.scalars(
+        select(Member)
+        .join(GroupMember, GroupMember.member_id == Member.id)
+        .where(GroupMember.group_id == group_id)
+        .order_by(Member.last_name.asc(), Member.first_name.asc())
+    ).all()
+
+
+@router.post("/{group_id}/members", response_model=dict)
+def add_group_members(
+    group_id: uuid.UUID,
+    payload: MemberIdsRequest,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    _get_group_or_404(db, group_id)
+
+    existing = set(
+        db.scalars(
+            select(GroupMember.member_id).where(
+                GroupMember.group_id == group_id
+            )
+        ).all()
+    )
+    valid_ids = set(
+        db.scalars(
+            select(Member.id).where(Member.id.in_(payload.member_ids))
+        ).all()
+    )
+    to_add = valid_ids - existing
+
+    for member_id in to_add:
+        db.add(GroupMember(group_id=group_id, member_id=member_id))
+    db.commit()
+    return {"added": len(to_add)}
+
+
+@router.delete("/{group_id}/members", response_model=dict)
+def remove_group_members(
+    group_id: uuid.UUID,
+    payload: MemberIdsRequest,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    _get_group_or_404(db, group_id)
+
+    memberships = db.scalars(
+        select(GroupMember).where(
+            GroupMember.group_id == group_id,
+            GroupMember.member_id.in_(payload.member_ids),
+        )
+    ).all()
+    for membership in memberships:
+        db.delete(membership)
+    db.commit()
+    return {"removed": len(memberships)}
