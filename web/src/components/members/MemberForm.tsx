@@ -1,7 +1,9 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
+import { listGroups } from "@/lib/api/groups";
+import type { Group } from "@/types/group";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import type {
@@ -35,6 +37,32 @@ export function MemberForm({
   const [role, setRole] = useState<MemberRole>(member?.role ?? "member");
   const [notes, setNotes] = useState(member?.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(
+    member?.groupIds ?? []
+  );
+
+  useEffect(() => {
+    let cancelled = false;
+    listGroups()
+      .then((data) => {
+        if (!cancelled) setGroups(data);
+      })
+      .catch(() => {
+        // Groups are optional; a failed fetch just hides the picker.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  function toggleGroup(groupId: string) {
+    setSelectedGroupIds((prev) =>
+      prev.includes(groupId)
+        ? prev.filter((id) => id !== groupId)
+        : [...prev, groupId]
+    );
+  }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -50,6 +78,7 @@ export function MemberForm({
         status,
         role,
         notes: notes.trim() || undefined,
+        groupIds: selectedGroupIds,
       });
     } finally {
       setSubmitting(false);
@@ -199,6 +228,30 @@ export function MemberForm({
             placeholder="Anything worth remembering about this member…"
           />
         </div>
+
+        {groups.length > 0 ? (
+          <div>
+            <span className="mb-1 block text-sm font-medium text-stone-800">
+              Groups <span className="text-stone-400">(optional)</span>
+            </span>
+            <div className="grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-[#ddd8c8] bg-white p-2 sm:grid-cols-2">
+              {groups.map((group) => (
+                <label
+                  key={group.id}
+                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-stone-700 transition hover:bg-stone-100"
+                >
+                  <input
+                    type="checkbox"
+                    checked={selectedGroupIds.includes(group.id)}
+                    onChange={() => toggleGroup(group.id)}
+                    className="h-4 w-4 rounded border-stone-300 text-[#012f11] focus:ring-[#012f11]"
+                  />
+                  {group.name}
+                </label>
+              ))}
+            </div>
+          </div>
+        ) : null}
 
         <div className="flex items-center gap-3">
           <Button type="submit" disabled={submitting}>
