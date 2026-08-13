@@ -20,6 +20,7 @@ class MemberCreate(BaseModel):
     status: MemberStatus = "active"
     role: MemberRole = "member"
     notes: str | None = None
+    group_ids: list[uuid.UUID] | None = None
 
 
 class BulkDeleteRequest(BaseModel):
@@ -36,6 +37,7 @@ class MemberUpdate(BaseModel):
     status: MemberStatus | None = None
     role: MemberRole | None = None
     notes: str | None = None
+    group_ids: list[uuid.UUID] | None = None
 
 
 class MemberRead(BaseModel):
@@ -53,5 +55,6 @@ class MemberRead(BaseModel):
     status: str
     role: str
     notes: str | None
+    group_ids: list[uuid.UUID] = []
     created_at: datetime
     updated_at: datetime
