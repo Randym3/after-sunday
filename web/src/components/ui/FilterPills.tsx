@@ -38,16 +38,16 @@ export function FilterPills({
       {active.map(([key, value]) => (
         <span
           key={key}
-          className="inline-flex items-center gap-1.5 rounded-full border border-stone-200 bg-white px-3 py-1 text-xs text-stone-600"
+          className="inline-flex items-center gap-1.5 rounded-full border border-edge bg-panel-2 px-3 py-1 text-xs text-ink-soft"
         >
-          <span className="font-medium text-stone-700">
+          <span className="font-medium text-ink">
             {labelFor(columns, key)}:
           </span>
           {value}
           <button
             type="button"
             onClick={() => remove(key)}
-            className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-stone-400 transition hover:bg-stone-200 hover:text-stone-600"
+            className="ml-0.5 inline-flex h-4 w-4 items-center justify-center rounded-full text-ink-soft transition hover:bg-panel hover:text-ink"
             aria-label={`Remove ${labelFor(columns, key)} filter`}
           >
             <svg
@@ -71,7 +71,7 @@ export function FilterPills({
       <button
         type="button"
         onClick={clearAll}
-        className="text-xs font-medium text-[#012f11] transition hover:underline"
+        className="text-xs font-medium text-primary transition hover:underline"
       >
         Clear all
       </button>

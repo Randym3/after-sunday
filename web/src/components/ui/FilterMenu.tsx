@@ -37,10 +37,10 @@ export function FilterToggle({ open, count, onToggle }: FilterToggleProps) {
     <button
       type="button"
       onClick={onToggle}
-      className={`inline-flex items-center gap-2 rounded-full border bg-white px-4 py-2 text-sm font-medium transition ${
+      className={`inline-flex items-center gap-2 rounded-full border bg-panel-2 px-4 py-2 text-sm font-medium transition ${
         open || count > 0
-          ? "border-[#012f11] text-[#012f11]"
-          : "border-stone-300 text-stone-600 hover:border-stone-400 hover:text-stone-800"
+          ? "border-primary text-primary"
+          : "border-edge text-ink-soft hover:border-edge hover:text-ink"
       }`}
     >
       <svg
@@ -59,7 +59,7 @@ export function FilterToggle({ open, count, onToggle }: FilterToggleProps) {
       </svg>
       Filter
       {count > 0 && (
-        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#012f11] px-1.5 text-[11px] font-semibold text-white">
+        <span className="inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1.5 text-[11px] font-semibold text-white">
           {count}
         </span>
       )}
@@ -100,9 +100,9 @@ export function FilterSidebar({
   }
 
   return (
-    <aside className="w-60 flex-shrink-0 rounded-2xl border border-stone-200 bg-white p-4 shadow-sm">
+    <aside className="w-60 flex-shrink-0 rounded-2xl border border-edge bg-panel p-4 shadow-sm">
       <div className="mb-4 flex items-center justify-between">
-        <p className="text-xs font-semibold uppercase tracking-wide text-stone-500">
+        <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
           Filter
         </p>
 
@@ -110,7 +110,7 @@ export function FilterSidebar({
           <button
             type="button"
             onClick={clearAll}
-            className="text-xs font-medium text-[#012f11] hover:underline"
+            className="text-xs font-medium text-primary hover:underline"
           >
             Clear all
           </button>
@@ -125,7 +125,7 @@ export function FilterSidebar({
             <div key={col.key}>
               <label
                 htmlFor={`filter-${col.key}`}
-                className="mb-1.5 block text-xs font-medium text-stone-600"
+                className="mb-1.5 block text-xs font-medium text-ink-soft"
               >
                 {col.label}
               </label>
@@ -142,7 +142,7 @@ export function FilterSidebar({
                   id={`filter-${col.key}`}
                   value={filters[col.key] ?? ""}
                   onChange={(e) => update(col.key, e.target.value)}
-                  className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-[#012f11]"
+                  className="w-full rounded-xl border border-edge bg-panel-2 px-3 py-2 text-xs text-ink outline-none transition focus:border-primary"
                 >
                   <option value="">Any</option>
 
@@ -159,7 +159,7 @@ export function FilterSidebar({
                   value={filters[col.key] ?? ""}
                   onChange={(e) => update(col.key, e.target.value)}
                   placeholder={`Filter ${col.label.toLowerCase()}…`}
-                  className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-[#012f11]"
+                  className="w-full rounded-xl border border-edge bg-panel-2 px-3 py-2 text-xs text-ink outline-none transition focus:border-primary"
                 />
               )}
             </div>

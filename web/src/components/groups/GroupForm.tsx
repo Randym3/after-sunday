@@ -13,7 +13,7 @@ interface GroupFormProps {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-[#ddd8c8] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#012f11]";
+  "w-full rounded-xl border border-edge bg-panel-2 px-3 py-2 text-sm text-ink outline-none transition focus:border-primary";
 
 export function GroupForm({ group, onCancel, onSubmit }: GroupFormProps) {
   const [name, setName] = useState(group?.name ?? "");
@@ -35,7 +35,7 @@ export function GroupForm({ group, onCancel, onSubmit }: GroupFormProps) {
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-[#102015]">
+      <h2 className="text-lg font-semibold text-ink">
         {group ? "Edit group" : "Add group"}
       </h2>
 
@@ -43,7 +43,7 @@ export function GroupForm({ group, onCancel, onSubmit }: GroupFormProps) {
         <div>
           <label
             htmlFor="groupName"
-            className="mb-1 block text-sm font-medium text-stone-800"
+            className="mb-1 block text-sm font-medium text-ink"
           >
             Name
           </label>
@@ -61,9 +61,9 @@ export function GroupForm({ group, onCancel, onSubmit }: GroupFormProps) {
         <div>
           <label
             htmlFor="groupDescription"
-            className="mb-1 block text-sm font-medium text-stone-800"
+            className="mb-1 block text-sm font-medium text-ink"
           >
-            Description <span className="text-stone-400">(optional)</span>
+            Description <span className="text-ink-soft">(optional)</span>
           </label>
           <textarea
             id="groupDescription"

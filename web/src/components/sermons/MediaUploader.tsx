@@ -79,9 +79,9 @@ export function MediaUploader({
   const done = pct >= 100;
 
   return (
-    <div className="mt-5 space-y-4 rounded-3xl border border-[#ddd8c8] bg-white p-5 shadow-sm">
+    <div className="mt-5 space-y-4 rounded-3xl border border-edge bg-panel p-5 shadow-sm">
       <div className="flex items-center justify-between">
-        <h3 className="text-base font-semibold text-[#102015]">
+        <h3 className="text-base font-semibold text-ink">
           {done ? "Upload complete" : "Uploading your file…"}
         </h3>
 
@@ -91,7 +91,7 @@ export function MediaUploader({
             cancelled.current = true;
             onCancel();
           }}
-          className="rounded-full p-1 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+          className="rounded-full p-1 text-ink-soft transition hover:bg-panel-2 hover:text-ink"
           aria-label="Cancel upload"
         >
           <svg
@@ -110,7 +110,7 @@ export function MediaUploader({
       </div>
 
       <div className="flex items-center gap-3">
-        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+        <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-gold/15 text-gold">
           <svg
             width="20"
             height="20"
@@ -125,33 +125,33 @@ export function MediaUploader({
         </span>
 
         <div className="min-w-0 flex-1">
-          <p className="truncate text-sm font-medium text-stone-800">
+          <p className="truncate text-sm font-medium text-ink">
             {file.name}
           </p>
 
-          <p className="text-xs text-stone-500">
+          <p className="text-xs text-ink-soft">
             {done ? "Upload finished" : `${pct}% completed`}
           </p>
         </div>
 
-        <span className="text-xs tabular-nums text-stone-400">
+        <span className="text-xs tabular-nums text-ink-soft">
           {formatBytes(progress?.transferred ?? 0)} / {formatBytes(file.size)}
         </span>
       </div>
 
-      <div className="h-2 w-full overflow-hidden rounded-full bg-stone-200">
+      <div className="h-2 w-full overflow-hidden rounded-full bg-panel-2">
         <div
           className={cn(
             "h-full rounded-full transition-[width] duration-150",
-            error ? "bg-red-500" : done ? "bg-[#012f11]" : "bg-[#acd863]",
+            error ? "bg-red-500" : done ? "bg-mint" : "bg-primary",
           )}
           style={{ width: `${error ? 100 : pct}%` }}
         />
       </div>
 
-      {error ? <p className="text-sm font-medium text-red-700">{error}</p> : null}
+      {error ? <p className="text-sm font-medium text-red-400">{error}</p> : null}
 
-      {note ? <p className="text-xs leading-5 text-stone-500">{note}</p> : null}
+      {note ? <p className="text-xs leading-5 text-ink-soft">{note}</p> : null}
     </div>
   );
 }

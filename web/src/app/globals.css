@@ -1,16 +1,36 @@
 @import "tailwindcss";
 
+@theme {
+  /* Light content surfaces */
+  --color-app: #f0f1f5;
+  --color-panel: #ffffff;
+  --color-panel-2: #f4f5f8;
+  --color-edge: #e3e5ec;
+
+  /* Text */
+  --color-ink: #1b1b2f;
+  --color-ink-soft: #6b7280;
+
+  /* Accents — blue primary, green secondary, pink/amber for variety */
+  --color-primary: #4878f0;
+  --color-primary-strong: #3a66d9;
+  --color-mint: #059669;
+  --color-coral: #e11d48;
+  --color-gold: #b45309;
+
+  --font-sans: var(--font-montserrat), ui-sans-serif, system-ui, sans-serif;
+}
+
 :root {
-  --background: #f4f1e8;
-  --foreground: #102015;
+  --background: #f0f1f5;
+  --foreground: #1b1b2f;
 
-  --brand: #012f11;
-  --brand-soft: #073f19;
-  --accent: #9cff00;
+  --brand: #059669;
+  --accent: #4878f0;
 
-  --card: #fffdf7;
-  --muted: #716f68;
-  --border: #ddd8c8;
+  --card: #ffffff;
+  --muted: #6b7280;
+  --border: #e3e5ec;
 }
 
 html {
@@ -24,7 +44,7 @@ body {
 
 ::selection {
   background: var(--accent);
-  color: var(--brand);
+  color: #ffffff;
 }
 
 /* Every actionable element gets a pointer cursor. */
@@ -48,4 +68,3 @@ input:disabled,
 label:has(input:disabled) {
   cursor: not-allowed;
 }
-

@@ -25,13 +25,13 @@ export default function DashboardPage() {
       <DashboardMetrics />
 
       <div className="mt-6">
-        <div className="rounded-3xl bg-[#012f11] p-6 text-white shadow-sm">
+        <div className="rounded-3xl border border-mint/20 bg-mint/10 p-6 shadow-sm">
           <div className="max-w-2xl">
-            <p className="text-sm font-medium text-lime-300">MVP workflow</p>
-            <h2 className="mt-3 text-2xl font-semibold">
+            <p className="text-sm font-medium text-mint">MVP workflow</p>
+            <h2 className="mt-3 text-2xl font-semibold text-ink">
               Start with one sermon, one transcript, and one follow-up draft.
             </h2>
-            <p className="mt-3 text-sm leading-6 text-green-50">
+            <p className="mt-3 text-sm leading-6 text-ink-soft">
               Before connecting AI, email sending, or YouTube imports, we will prove
               the core pastoral workflow.
             </p>

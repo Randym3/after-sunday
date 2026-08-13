@@ -536,7 +536,7 @@ export function SermonWorkspace({
   if (isPersistedSermon && persistedLoadState === "loading") {
     return (
       <div className="py-20 text-center">
-        <p className="text-sm text-stone-600">Loading sermon…</p>
+        <p className="text-sm text-ink-soft">Loading sermon…</p>
       </div>
     );
   }
@@ -546,18 +546,18 @@ export function SermonWorkspace({
       <div className="space-y-6 py-10">
         <Link
           href="/app/sermons"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-primary"
         >
           <span aria-hidden="true">←</span>
           Back to sermons
         </Link>
 
         <div>
-          <h1 className="text-2xl font-semibold text-[#102015]">
+          <h1 className="text-2xl font-semibold text-ink">
             Unable to load this sermon
           </h1>
 
-          <p className="mt-2 text-sm leading-6 text-stone-600">
+          <p className="mt-2 text-sm leading-6 text-ink-soft">
             {persistedLoadError}
           </p>
         </div>
@@ -570,7 +570,7 @@ export function SermonWorkspace({
       <div className="mb-6">
         <Link
           href="/app/sermons"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-primary"
         >
           <span aria-hidden="true">←</span>
           Back to sermons
@@ -587,15 +587,15 @@ export function SermonWorkspace({
       />
 
       {/* Tab bar */}
-      <div className="flex gap-1 rounded-2xl bg-stone-100 p-1 w-fit">
+      <div className="flex gap-1 rounded-2xl bg-panel-2 p-1 w-fit">
         <button
           type="button"
           onClick={() => setTab("details")}
           className={cn(
             "rounded-xl px-4 py-2 text-sm font-medium transition",
             tab === "details"
-              ? "bg-white text-[#012f11] shadow-sm"
-              : "text-stone-600 hover:text-[#102015]",
+              ? "bg-primary text-white shadow-sm"
+              : "text-ink-soft hover:text-ink",
           )}
         >
           Sermon Details
@@ -607,8 +607,8 @@ export function SermonWorkspace({
           className={cn(
             "rounded-xl px-4 py-2 text-sm font-medium transition",
             tab === "ai"
-              ? "bg-white text-[#012f11] shadow-sm"
-              : "text-stone-600 hover:text-[#102015]",
+              ? "bg-primary text-white shadow-sm"
+              : "text-ink-soft hover:text-ink",
           )}
         >
           AI Draft
@@ -717,7 +717,7 @@ export function SermonWorkspace({
           />
 
           {detailsMessage ? (
-            <p className="text-sm font-medium text-green-800">
+            <p className="text-sm font-medium text-mint">
               {detailsMessage}
             </p>
           ) : null}
@@ -735,13 +735,13 @@ export function SermonWorkspace({
         >
           {/* Transcript — read-only */}
           <Card>
-            <div className="flex flex-col gap-4 border-b border-[#ddd8c8] pb-5 sm:flex-row sm:items-start sm:justify-between">
+            <div className="flex flex-col gap-4 border-b border-edge pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
-                <h2 className="text-lg font-semibold text-[#102015]">
+                <h2 className="text-lg font-semibold text-ink">
                   Sermon transcript
                 </h2>
 
-                <p className="mt-1 text-sm leading-6 text-stone-600">
+                <p className="mt-1 text-sm leading-6 text-ink-soft">
                   The finalized transcript used for AI follow-up
                   generation.
                 </p>
@@ -754,21 +754,21 @@ export function SermonWorkspace({
 
             {sermon.transcriptStatus !== "ready" ? (
               <div className="py-10 text-center">
-                <h3 className="font-semibold text-[#102015]">
+                <h3 className="font-semibold text-ink">
                   {status.label}
                 </h3>
 
-                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-stone-600">
+                <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-ink-soft">
                   {status.description}
                 </p>
 
                 {sermon.transcriptStatus === "failed" &&
                 sermon.transcriptError ? (
-                  <div className="mx-auto mt-4 max-w-lg rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-left">
-                    <p className="text-sm font-medium text-red-800">
+                  <div className="mx-auto mt-4 max-w-lg rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-left">
+                    <p className="text-sm font-medium text-red-300">
                       Error details
                     </p>
-                    <p className="mt-1 break-words font-mono text-xs leading-5 text-red-700">
+                    <p className="mt-1 break-words font-mono text-xs leading-5 text-red-400">
                       {sermon.transcriptError}
                     </p>
                   </div>
@@ -784,7 +784,7 @@ export function SermonWorkspace({
                       </Button>
                     </div>
 
-                    <p className="mx-auto mt-3 max-w-md text-xs leading-5 text-stone-500">
+                    <p className="mx-auto mt-3 max-w-md text-xs leading-5 text-ink-soft">
                       Prototype action — simulates transcription
                       finishing so you can test the follow-up flow.
                     </p>
@@ -794,13 +794,13 @@ export function SermonWorkspace({
             ) : (
               <div className="pt-6">
                 <div className="max-h-72 overflow-y-auto pr-3">
-                  <p className="whitespace-pre-wrap italic leading-7 text-stone-600">
+                  <p className="whitespace-pre-wrap italic leading-7 text-ink-soft">
                     {sermon.transcript?.trim() ||
                       "No transcript available yet. Switch to the Sermon Details tab to add or edit the transcript."}
                   </p>
                 </div>
 
-                <div className="mt-4 text-xs text-stone-500">
+                <div className="mt-4 text-xs text-ink-soft">
                   <span>{transcriptWordCount} words</span>
                 </div>
               </div>
@@ -809,7 +809,7 @@ export function SermonWorkspace({
 
           {/* Follow-up status */}
           <Card>
-            <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
+            <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">
               Follow-up status
             </p>
 
@@ -833,7 +833,7 @@ export function SermonWorkspace({
               </Badge>
             </div>
 
-            <p className="mt-3 text-sm leading-6 text-stone-600">
+            <p className="mt-3 text-sm leading-6 text-ink-soft">
               AI-generated content must be approved before it can be
               sent.
             </p>

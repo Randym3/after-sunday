@@ -52,19 +52,19 @@ export function SearchableSelect({
         onKeyDown={(e) => {
           if (e.key === "Escape") setOpen(false);
         }}
-        className="w-full rounded-xl border border-stone-300 bg-white px-3 py-2 text-xs outline-none transition focus:border-[#012f11]"
+        className="w-full rounded-xl border border-edge bg-panel-2 px-3 py-2 text-xs text-ink outline-none transition focus:border-primary"
       />
 
       {open && filtered.length > 0 && (
-        <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-40 overflow-auto rounded-xl border border-stone-200 bg-white py-1 shadow-lg">
+        <ul className="absolute left-0 right-0 top-full z-50 mt-1 max-h-40 overflow-auto rounded-xl border border-edge bg-panel-2 py-1 shadow-lg">
           {filtered.map((opt) => (
             <li key={opt}>
               <button
                 type="button"
-                className={`w-full px-3 py-2 text-left text-xs transition hover:bg-stone-100 ${
+                className={`w-full px-3 py-2 text-left text-xs transition hover:bg-panel ${
                   opt === value
-                    ? "bg-[#012f11]/10 font-medium text-[#012f11]"
-                    : "text-stone-700"
+                    ? "bg-primary/15 font-medium text-primary"
+                    : "text-ink-soft"
                 }`}
                 onClick={() => {
                   onChange(opt === value ? "" : opt);

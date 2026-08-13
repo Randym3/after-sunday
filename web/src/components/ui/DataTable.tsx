@@ -73,7 +73,7 @@ function SortArrow({ active, dir }: { active: boolean; dir: "asc" | "desc" }) {
     <span
       aria-hidden
       className={`ml-1 inline-block w-2.5 text-center text-[10px] ${
-        active ? "text-[#012f11]" : "opacity-0"
+        active ? "text-primary" : "opacity-0"
       }`}
     >
       {dir === "asc" ? "\u25B2" : "\u25BC"}
@@ -283,7 +283,7 @@ export function DataTable<T>({
   if (sorted === null) {
     return (
       <Card>
-        <p className="py-8 text-center text-sm text-stone-500">
+        <p className="py-8 text-center text-sm text-ink-soft">
           Loading…
         </p>
       </Card>
@@ -294,7 +294,7 @@ export function DataTable<T>({
     return (
       <div className="flex gap-4">
         <div className="min-w-0 flex-1 space-y-3">
-          <p className="text-sm text-stone-600">
+          <p className="text-sm text-ink-soft">
             {countLabel(0)}
           </p>
 
@@ -341,7 +341,7 @@ export function DataTable<T>({
   return (
     <div className="flex gap-4">
       <div className="min-w-0 flex-1 space-y-3">
-        <p className="text-sm text-stone-600">
+        <p className="text-sm text-ink-soft">
           {countLabel(sorted.length)}
         </p>
 
@@ -355,8 +355,8 @@ export function DataTable<T>({
 
         {/* Bulk-delete action bar */}
         {selectedCount > 0 && onBulkDelete ? (
-          <div className="flex items-center gap-3 rounded-lg border border-red-200 bg-red-50 px-4 py-2.5">
-            <p className="text-sm font-medium text-red-800">
+          <div className="flex items-center gap-3 rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-2.5">
+            <p className="text-sm font-medium text-red-300">
               {selectedCount}{" "}
               {selectedCount === 1 ? "item" : "items"} selected
             </p>
@@ -365,7 +365,7 @@ export function DataTable<T>({
               onClick={() => setBulkDeleteOpen(true)}
               disabled={bulkDeleting}
               aria-label="Delete selected"
-              className="inline-flex cursor-pointer items-center justify-center text-red-600 transition hover:text-red-700 disabled:cursor-not-allowed disabled:opacity-50"
+              className="inline-flex cursor-pointer items-center justify-center text-red-400 transition hover:text-red-300 disabled:cursor-not-allowed disabled:opacity-50"
             >
               <svg
                 xmlns="http://www.w3.org/2000/svg"
@@ -391,13 +391,13 @@ export function DataTable<T>({
 
         <Card className="overflow-hidden p-0">
           <table className="w-full text-left text-sm">
-            <thead className="border-b border-stone-200 bg-stone-50">
+            <thead className="border-b border-edge bg-panel-2">
               <tr>
                 {onBulkDelete ? (
                   <th className="w-10 px-3 py-3">
                     <input
                       type="checkbox"
-                      className="h-4 w-4 rounded border-stone-300 text-[#012f11] focus:ring-[#012f11]"
+                      className="h-4 w-4 rounded border-edge accent-primary"
                       checked={isAllSelected}
                       onChange={toggleSelectAll}
                       aria-label="Select all"
@@ -409,7 +409,7 @@ export function DataTable<T>({
                   <th
                     key={col.key}
                     scope="col"
-                    className="cursor-pointer select-none px-5 py-3 text-xs font-semibold uppercase tracking-wide text-stone-500 transition hover:text-[#102015]"
+                    className="cursor-pointer select-none px-5 py-3 text-xs font-semibold uppercase tracking-wide text-ink-soft transition hover:text-ink"
                     onClick={() => handleSort(col.key)}
                   >
                     {col.label}
@@ -423,7 +423,7 @@ export function DataTable<T>({
                 {editHref || onDelete ? (
                   <th
                     scope="col"
-                    className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-stone-500"
+                    className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-wide text-ink-soft"
                   >
                     Actions
                   </th>
@@ -438,13 +438,13 @@ export function DataTable<T>({
                 return (
                   <tr
                     key={id}
-                    className="border-b border-stone-100 transition hover:bg-stone-100"
+                    className="border-b border-edge/60 transition hover:bg-panel-2"
                   >
                     {onBulkDelete ? (
                       <td className="px-3 py-3">
                         <input
                           type="checkbox"
-                          className="h-4 w-4 rounded border-stone-300 text-[#012f11] focus:ring-[#012f11]"
+                          className="h-4 w-4 rounded border-edge accent-primary"
                           checked={selectedIds.has(id)}
                           onChange={() => toggleSelect(id)}
                           aria-label={`Select ${id}`}
@@ -455,7 +455,7 @@ export function DataTable<T>({
                     {columns.map((col) => (
                       <td
                         key={col.key}
-                        className="px-5 py-3 text-stone-600"
+                        className="px-5 py-3 text-ink-soft"
                       >
                         {col.render ? col.render(row) : null}
                       </td>

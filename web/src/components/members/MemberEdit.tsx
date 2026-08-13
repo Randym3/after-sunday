@@ -59,18 +59,18 @@ export function MemberEdit({ memberId }: MemberEditProps) {
       <div className="space-y-6 py-10">
         <Link
           href="/app/members"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-primary"
         >
           <span aria-hidden="true">←</span>
           Back to members
         </Link>
 
         <div>
-          <h1 className="text-2xl font-semibold text-[#102015]">
+          <h1 className="text-2xl font-semibold text-ink">
             Unable to load this member
           </h1>
 
-          <p className="mt-2 text-sm leading-6 text-stone-600">{error}</p>
+          <p className="mt-2 text-sm leading-6 text-ink-soft">{error}</p>
         </div>
       </div>
     );
@@ -79,7 +79,7 @@ export function MemberEdit({ memberId }: MemberEditProps) {
   if (member === null) {
     return (
       <Card>
-        <p className="py-8 text-center text-sm text-stone-500">
+        <p className="py-8 text-center text-sm text-ink-soft">
           Loading member…
         </p>
       </Card>
@@ -91,7 +91,7 @@ export function MemberEdit({ memberId }: MemberEditProps) {
       <div className="mb-6">
         <Link
           href="/app/members"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-primary"
         >
           <span aria-hidden="true">←</span>
           Back to members

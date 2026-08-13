@@ -30,7 +30,7 @@ const COLUMNS: DataTableColumn<Member>[] = [
     render: (member) => (
       <Link
         href={`/app/members/${member.id}`}
-        className="font-medium text-[#102015] transition hover:text-[#012f11]"
+        className="font-medium text-ink transition hover:text-primary"
       >
         {member.firstName}
       </Link>
@@ -40,7 +40,7 @@ const COLUMNS: DataTableColumn<Member>[] = [
     key: "lastName",
     label: "Last",
     render: (member) => (
-      <span className="font-medium text-[#102015]">{member.lastName}</span>
+      <span className="font-medium text-ink">{member.lastName}</span>
     ),
   },
   {

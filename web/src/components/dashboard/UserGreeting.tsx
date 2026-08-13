@@ -27,8 +27,8 @@ export function UserGreeting() {
   if (!email) return null;
 
   return (
-    <p className="text-sm font-medium text-stone-600">
-      Hello, <span className="text-[#012f11]">{email}</span>
+    <p className="text-sm font-medium text-ink-soft">
+      Hello, <span className="text-primary">{email}</span>
     </p>
   );
 }

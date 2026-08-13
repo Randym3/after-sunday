@@ -7,10 +7,10 @@ interface BadgeProps {
 
 export function Badge({ children, variant = "neutral" }: BadgeProps) {
   const variants = {
-    neutral: "bg-stone-100 text-stone-700",
-    success: "bg-green-100 text-green-900",
-    warning: "bg-lime-100 text-green-950",
-    danger: "bg-red-100 text-red-800",
+    neutral: "bg-panel-2 text-ink-soft",
+    success: "bg-mint/15 text-mint",
+    warning: "bg-gold/15 text-gold",
+    danger: "bg-red-500/15 text-red-400",
   };
 
   return (

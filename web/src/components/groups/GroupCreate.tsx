@@ -26,7 +26,7 @@ export function GroupCreate() {
       <div className="mb-6">
         <Link
           href="/app/groups"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-primary"
         >
           <span aria-hidden="true">←</span>
           Back to groups

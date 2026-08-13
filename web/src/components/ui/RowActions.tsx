@@ -11,10 +11,10 @@ interface RowActionsProps {
 }
 
 const iconClass =
-  "inline-flex cursor-pointer items-center justify-center text-[#012f11] transition hover:text-[#073f19]";
+  "inline-flex cursor-pointer items-center justify-center text-ink-soft transition hover:text-primary";
 
 const deleteIconClass =
-  "inline-flex cursor-pointer items-center justify-center text-red-600 transition hover:text-red-700";
+  "inline-flex cursor-pointer items-center justify-center text-red-400 transition hover:text-red-300";
 
 function PencilIcon() {
   return (

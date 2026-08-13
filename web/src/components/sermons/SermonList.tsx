@@ -45,7 +45,7 @@ const COLUMNS: DataTableColumn<Sermon>[] = [
     render: (sermon) => (
       <Link
         href={`/app/sermons/${sermon.id}`}
-        className="font-medium text-[#102015] transition hover:text-[#012f11]"
+        className="font-medium text-ink transition hover:text-primary"
       >
         {sermon.title || "Untitled"}
       </Link>

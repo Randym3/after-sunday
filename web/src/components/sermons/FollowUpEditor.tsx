@@ -55,17 +55,17 @@ function GeneratingSwirl() {
       className="flex min-h-80 flex-col items-center justify-center py-10 text-center"
     >
       <div className="relative h-24 w-24">
-        <div className="absolute inset-0 rounded-full border border-green-100" />
+        <div className="absolute inset-0 rounded-full border border-mint/20" />
 
         <div
-          className="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-r-lime-400 border-t-[#012f11]"
+          className="absolute inset-1 animate-spin rounded-full border-2 border-transparent border-r-primary border-t-primary"
           style={{
             animationDuration: "1.1s",
           }}
         />
 
         <div
-          className="absolute inset-4 animate-spin rounded-full border-2 border-transparent border-b-green-300 border-l-green-700"
+          className="absolute inset-4 animate-spin rounded-full border-2 border-transparent border-b-mint border-l-mint"
           style={{
             animationDuration: "1.8s",
             animationDirection: "reverse",
@@ -73,32 +73,32 @@ function GeneratingSwirl() {
         />
 
         <div className="absolute inset-0 flex items-center justify-center">
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-[#012f11] shadow-sm">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary shadow-sm">
             <span
-              className="h-3 w-3 rotate-45 rounded-[3px] bg-lime-300"
+              className="h-3 w-3 rotate-45 rounded-[3px] bg-ink"
               aria-hidden="true"
             />
           </div>
         </div>
       </div>
 
-      <h3 className="mt-6 font-semibold text-[#102015]">
+      <h3 className="mt-6 font-semibold text-ink">
         Preparing your follow-up
       </h3>
 
-      <p className="mt-2 max-w-sm text-sm leading-6 text-stone-600">
+      <p className="mt-2 max-w-sm text-sm leading-6 text-ink-soft">
         After Sunday is reviewing the sermon and preparing takeaways,
         reflection questions, and a pastoral message.
       </p>
 
       <div className="mt-5 flex items-center gap-1.5">
-        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-900" />
+        <span className="h-1.5 w-1.5 animate-pulse rounded-full bg-mint" />
         <span
-          className="h-1.5 w-1.5 animate-pulse rounded-full bg-green-700"
+          className="h-1.5 w-1.5 animate-pulse rounded-full bg-mint/60"
           style={{ animationDelay: "150ms" }}
         />
         <span
-          className="h-1.5 w-1.5 animate-pulse rounded-full bg-lime-500"
+          className="h-1.5 w-1.5 animate-pulse rounded-full bg-primary"
           style={{ animationDelay: "300ms" }}
         />
       </div>
@@ -131,13 +131,13 @@ export function FollowUpEditor({
 
   return (
     <Card className="h-full">
-      <div className="flex flex-col gap-4 border-b border-[#ddd8c8] pb-5 sm:flex-row sm:items-start sm:justify-between">
+      <div className="flex flex-col gap-4 border-b border-edge pb-5 sm:flex-row sm:items-start sm:justify-between">
         <div>
-          <h2 className="text-xl font-semibold text-[#102015]">
+          <h2 className="text-xl font-semibold text-ink">
             Follow-up draft
           </h2>
 
-          <p className="mt-1 text-sm leading-6 text-stone-600">
+          <p className="mt-1 text-sm leading-6 text-ink-soft">
             Generate a starting point, then review and edit it before
             approval.
           </p>
@@ -152,11 +152,11 @@ export function FollowUpEditor({
     <GeneratingSwirl />
     ) : !hasDraft ? (
         <div className="flex min-h-80 flex-col items-center justify-center py-10 text-center">
-          <h3 className="font-semibold text-[#102015]">
+          <h3 className="font-semibold text-ink">
             No follow-up draft yet
           </h3>
 
-          <p className="mt-2 max-w-md text-sm leading-6 text-stone-600">
+          <p className="mt-2 max-w-md text-sm leading-6 text-ink-soft">
             After the transcript is ready, generate a pastoral
             follow-up draft based on the sermon.
           </p>
@@ -172,12 +172,12 @@ export function FollowUpEditor({
         </div>
 
           {!canGenerate ? (
-            <p className="mt-3 text-xs text-stone-500">
+            <p className="mt-3 text-xs text-ink-soft">
               A reviewed transcript is required before generating a
               draft.
             </p>
           ) : (
-            <p className="mt-3 text-xs text-stone-500">
+            <p className="mt-3 text-xs text-ink-soft">
               The draft is generated from the reviewed transcript and can
               be edited before approval.
             </p>
@@ -188,7 +188,7 @@ export function FollowUpEditor({
           <div>
             <label
               htmlFor="followUpSubject"
-              className="block text-sm font-medium text-stone-800"
+              className="block text-sm font-medium text-ink"
             >
               Email subject
             </label>
@@ -199,7 +199,7 @@ export function FollowUpEditor({
               onChange={(event) =>
                 onSubjectChange(event.target.value)
               }
-              className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+              className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
               placeholder="A few reminders from Sunday’s sermon"
             />
           </div>
@@ -207,7 +207,7 @@ export function FollowUpEditor({
           <div>
             <label
               htmlFor="followUpBody"
-              className="block text-sm font-medium text-stone-800"
+              className="block text-sm font-medium text-ink"
             >
               Email message
             </label>
@@ -216,12 +216,12 @@ export function FollowUpEditor({
               id="followUpBody"
               value={body}
               onChange={(event) => onBodyChange(event.target.value)}
-              className="mt-2 min-h-[30rem] w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-7 outline-none transition focus:border-[#012f11]"
+              className="mt-2 min-h-[30rem] w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-7 text-ink outline-none transition focus:border-primary"
               placeholder="The generated follow-up will appear here..."
             />
           </div>
 
-          <div className="rounded-2xl bg-stone-100 px-4 py-3 text-xs leading-5 text-stone-600">
+          <div className="rounded-2xl bg-panel-2 px-4 py-3 text-xs leading-5 text-ink-soft">
             AI-generated content must be reviewed and approved by church
             staff before it can be sent.
           </div>
@@ -229,11 +229,11 @@ export function FollowUpEditor({
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div className="min-w-0">
               {error ? (
-                <p className="break-words text-sm font-medium text-red-700">
+                <p className="break-words text-sm font-medium text-red-400">
                   {error}
                 </p>
               ) : message ? (
-                <p className="text-sm font-medium text-green-800">
+                <p className="text-sm font-medium text-mint">
                   {message}
                 </p>
               ) : null}

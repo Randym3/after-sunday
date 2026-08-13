@@ -28,8 +28,8 @@ function deriveMetrics(sermons: Sermon[]): Metrics {
 function MetricCard({ label, value }: { label: string; value: number | string }) {
   return (
     <Card>
-      <p className="text-sm text-stone-500">{label}</p>
-      <p className="mt-3 text-4xl font-semibold text-[#102015]">{value}</p>
+      <p className="text-sm text-ink-soft">{label}</p>
+      <p className="mt-3 text-4xl font-semibold text-ink">{value}</p>
     </Card>
   );
 }
@@ -60,7 +60,7 @@ export function DashboardMetrics() {
         <MetricCard label="Sermons" value="—" />
         <MetricCard label="Drafts needing review" value="—" />
         <MetricCard label="Campaigns sent" value="—" />
-        <p className="text-sm text-stone-500 md:col-span-3">
+        <p className="text-sm text-ink-soft md:col-span-3">
           Couldn&apos;t load metrics. Refresh the page to try again.
         </p>
       </div>
@@ -73,8 +73,8 @@ export function DashboardMetrics() {
         {["Sermons", "Drafts needing review", "Campaigns sent"].map(
           (label) => (
             <Card key={label}>
-              <p className="text-sm text-stone-500">{label}</p>
-              <p className="mt-3 h-10 w-12 animate-pulse rounded bg-stone-100" />
+              <p className="text-sm text-ink-soft">{label}</p>
+              <p className="mt-3 h-10 w-12 animate-pulse rounded bg-panel-2" />
             </Card>
           ),
         )}

@@ -17,7 +17,7 @@ const COLUMNS: DataTableColumn<Group>[] = [
     render: (group) => (
       <Link
         href={`/app/groups/${group.id}`}
-        className="font-medium text-[#102015] transition hover:text-[#012f11]"
+        className="font-medium text-ink transition hover:text-primary"
       >
         {group.name}
       </Link>
@@ -32,7 +32,7 @@ const COLUMNS: DataTableColumn<Group>[] = [
     key: "memberCount",
     label: "Members",
     render: (group) => (
-      <span className="font-medium text-stone-700">{group.memberCount}</span>
+      <span className="font-medium text-ink">{group.memberCount}</span>
     ),
   },
 ];

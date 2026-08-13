@@ -435,11 +435,11 @@ export function SermonForm({
       <Card>
         <div className="space-y-6">
           <div>
-            <h2 className="text-lg font-semibold text-[#102015]">
+            <h2 className="text-lg font-semibold text-ink">
               Sermon details
             </h2>
 
-            <p className="mt-1 text-sm leading-6 text-stone-600">
+            <p className="mt-1 text-sm leading-6 text-ink-soft">
               Add the basic information church staff will use to
               identify this sermon.
             </p>
@@ -449,7 +449,7 @@ export function SermonForm({
             <div className="md:col-span-2">
               <label
                 htmlFor="title"
-                className="block text-sm font-medium text-stone-800"
+                className="block text-sm font-medium text-ink"
               >
                 Sermon title
               </label>
@@ -463,12 +463,12 @@ export function SermonForm({
                 style={
                   flash.title
                     ? {
-                        backgroundColor: "#f0fdf4", // bg-green-50
+                        backgroundColor: "rgba(52, 211, 153, 0.18)", // mint flash
                         transition: "background-color 200ms ease-out",
                       }
                     : undefined
                 }
-                className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
                 placeholder="The Good Shepherd"
                 required
               />
@@ -477,7 +477,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="preacher"
-                className="block text-sm font-medium text-stone-800"
+                className="block text-sm font-medium text-ink"
               >
                 Preacher
               </label>
@@ -491,7 +491,7 @@ export function SermonForm({
                   onChange={(event) =>
                     updateField("preacher", event.target.value)
                   }
-                  className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                  className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
                 >
                   <option value="">
                     Select a preacher…
@@ -513,7 +513,7 @@ export function SermonForm({
                   onChange={(event) =>
                     updateField("preacher", event.target.value)
                   }
-                  className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                  className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
                   placeholder={
                     preacherMode === "manual"
                       ? "Guest preacher name"
@@ -529,7 +529,7 @@ export function SermonForm({
                     mode === "directory" ? "manual" : "directory"
                   )
                 }
-                className="mt-2 text-xs font-medium text-[#012f11] underline underline-offset-2 transition hover:text-[#102015]"
+                className="mt-2 text-xs font-medium text-primary underline underline-offset-2 transition hover:text-ink"
               >
                 {preacherMode === "directory"
                   ? "Not in the directory? Enter a name"
@@ -540,7 +540,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="scriptureReference"
-                className="block text-sm font-medium text-stone-800"
+                className="block text-sm font-medium text-ink"
               >
                 Scripture reference
               </label>
@@ -554,7 +554,7 @@ export function SermonForm({
                     event.target.value
                   )
                 }
-                className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
                 placeholder="Psalm 23"
               />
             </div>
@@ -562,7 +562,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="preachedAt"
-                className="block text-sm font-medium text-stone-800"
+                className="block text-sm font-medium text-ink"
               >
                 Date preached
               </label>
@@ -577,12 +577,12 @@ export function SermonForm({
                 style={
                   flash.date
                     ? {
-                        backgroundColor: "#f0fdf4", // bg-green-50
+                        backgroundColor: "rgba(52, 211, 153, 0.18)", // mint flash
                         transition: "background-color 200ms ease-out",
                       }
                     : undefined
                 }
-                className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
               />
             </div>
           </div>
@@ -593,7 +593,7 @@ export function SermonForm({
         <Card>
           <div className="space-y-5">
             <div>
-              <h2 className="text-lg font-semibold text-[#102015]">
+              <h2 className="text-lg font-semibold text-ink">
                 Uploaded recording
               </h2>
             </div>
@@ -603,16 +603,16 @@ export function SermonForm({
               <div className="space-y-5">
                 {/* File info — compact row */}
                 <div className="flex items-center gap-3">
-                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-gold/15 text-gold">
                     <svg width="16" height="16" viewBox="0 0 20 20" fill="none" stroke="currentColor" strokeWidth="1.5"><path d="M6 2h5l5 5v10a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2z"/><polyline points="11,2 11,7 16,7"/></svg>
                   </span>
 
                   <div className="min-w-0 flex-1">
-                    <p className="truncate text-sm font-medium text-stone-800">
+                    <p className="truncate text-sm font-medium text-ink">
                       {sermon?.mediaFileName ?? "Recording"}
                     </p>
 
-                    <p className="text-xs text-stone-500">
+                    <p className="text-xs text-ink-soft">
                       {sermon?.mediaSizeBytes
                         ? `${(sermon.mediaSizeBytes / (1024 * 1024)).toFixed(1)} MB`
                         : ""}
@@ -655,11 +655,11 @@ export function SermonForm({
                   sermon?.mediaContentType?.startsWith("audio/") ? (
                   <audio controls className="w-full" src={mediaBlobUrl} />
                 ) : mediaLoadError ? (
-                  <div className="flex h-12 items-center justify-center rounded-2xl bg-stone-100 text-xs text-stone-400">
+                  <div className="flex h-12 items-center justify-center rounded-2xl bg-panel-2 text-xs text-ink-soft">
                     Preview unavailable
                   </div>
                 ) : (
-                  <div className="flex h-12 items-center justify-center rounded-2xl bg-stone-100 text-xs text-stone-400">
+                  <div className="flex h-12 items-center justify-center rounded-2xl bg-panel-2 text-xs text-ink-soft">
                     Loading preview…
                   </div>
                 )}
@@ -667,7 +667,7 @@ export function SermonForm({
                 <button
                   type="button"
                   onClick={() => setShowSourceEditor(true)}
-                  className="text-sm font-medium text-[#012f11] underline underline-offset-2 transition hover:text-[#102015]"
+                  className="text-sm font-medium text-primary underline underline-offset-2 transition hover:text-ink"
                 >
                   Change source
                 </button>
@@ -678,12 +678,12 @@ export function SermonForm({
                 <div className="flex items-center justify-between">
                   <label
                     htmlFor="transcript"
-                    className="text-sm font-medium text-stone-800"
+                    className="text-sm font-medium text-ink"
                   >
                     Transcript
                   </label>
 
-                  <span className="text-xs text-stone-500">
+                  <span className="text-xs text-ink-soft">
                     {
                       displayedTranscript
                         .trim()
@@ -701,11 +701,11 @@ export function SermonForm({
                     setTranscriptEdited(true);
                     updateField("transcript", event.target.value);
                   }}
-                  className="mt-2 min-h-64 w-full flex-1 resize-y rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#012f11]"
+                  className="mt-2 min-h-64 w-full flex-1 resize-y rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink outline-none transition focus:border-primary"
                   placeholder="No transcript yet — it will appear here after transcription."
                 />
 
-                <p className="mt-2 text-xs leading-5 text-stone-500">
+                <p className="mt-2 text-xs leading-5 text-ink-soft">
                   Editable transcript. The AI Draft tab uses this text
                   as the source for generating follow-up content.
                 </p>
@@ -718,11 +718,11 @@ export function SermonForm({
         <div className="space-y-6">
           <div className="flex items-start justify-between">
             <div>
-              <h2 className="text-lg font-semibold text-[#102015]">
+              <h2 className="text-lg font-semibold text-ink">
                 Sermon source
               </h2>
 
-              <p className="mt-1 text-sm leading-6 text-stone-600">
+              <p className="mt-1 text-sm leading-6 text-ink-soft">
                 Choose how you would like to add the sermon to After
                 Sunday.
               </p>
@@ -731,7 +731,7 @@ export function SermonForm({
             <button
               type="button"
               onClick={() => setShowSourceEditor(false)}
-              className="-mr-1 rounded-full p-1 text-stone-400 transition hover:bg-stone-100 hover:text-stone-600"
+              className="-mr-1 rounded-full p-1 text-ink-soft transition hover:bg-panel-2 hover:text-ink"
               aria-label="Close source editor"
             >
               <svg width="18" height="18" viewBox="0 0 18 18" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
@@ -757,8 +757,8 @@ export function SermonForm({
                     className={cn(
                       "relative cursor-pointer rounded-3xl border p-5 transition",
                       isSelected
-                        ? "border-[#012f11] bg-green-50 shadow-sm"
-                        : "border-[#ddd8c8] bg-white hover:border-stone-400"
+                        ? "border-primary bg-primary/10 shadow-sm"
+                        : "border-edge bg-panel-2 hover:border-edge"
                     )}
                   >
                     <input
@@ -774,11 +774,11 @@ export function SermonForm({
 
                     <div className="flex items-start justify-between gap-3">
                       <div>
-                        <p className="font-semibold text-[#102015]">
+                        <p className="font-semibold text-ink">
                           {option.title}
                         </p>
 
-                        <p className="mt-2 text-sm leading-6 text-stone-600">
+                        <p className="mt-2 text-sm leading-6 text-ink-soft">
                           {option.description}
                         </p>
                       </div>
@@ -787,15 +787,15 @@ export function SermonForm({
                         className={cn(
                           "mt-1 h-4 w-4 shrink-0 rounded-full border",
                           isSelected
-                            ? "border-[5px] border-[#012f11]"
-                            : "border-stone-400"
+                            ? "border-[5px] border-primary"
+                            : "border-edge"
                         )}
                         aria-hidden="true"
                       />
                     </div>
 
                     {option.badge ? (
-                      <span className="mt-4 inline-flex rounded-full bg-lime-100 px-3 py-1 text-xs font-medium text-green-950">
+                      <span className="mt-4 inline-flex rounded-full bg-mint/15 px-3 py-1 text-xs font-medium text-mint">
                         {option.badge}
                       </span>
                     ) : null}
@@ -809,26 +809,26 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="mediaFile"
-                className="block text-sm font-medium text-stone-800"
+                className="block text-sm font-medium text-ink"
               >
                 Audio or video recording
               </label>
 
               <label
                 htmlFor="mediaFile"
-                className="mt-2 flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-[#c9c3b2] bg-white px-6 py-8 text-center transition hover:border-[#012f11] hover:bg-green-50/40"
+                className="mt-2 flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-edge bg-panel-2 px-6 py-8 text-center transition hover:border-primary hover:bg-primary/5"
               >
-                <span className="text-sm font-semibold text-[#102015]">
+                <span className="text-sm font-semibold text-ink">
                   Choose a sermon recording
                 </span>
 
-                <span className="mt-2 max-w-md text-sm leading-6 text-stone-600">
+                <span className="mt-2 max-w-md text-sm leading-6 text-ink-soft">
                   Select an MP3, M4A, WAV, MP4, or WebM file.
                   Transcription starts immediately after upload.
                 </span>
 
                 {mediaFile ? (
-                  <span className="mt-4 rounded-2xl bg-stone-100 px-4 py-2 text-sm font-medium text-stone-800">
+                  <span className="mt-4 rounded-2xl bg-panel-2 px-4 py-2 text-sm font-medium text-ink">
                     {mediaFile.name}
                   </span>
                 ) : null}
@@ -864,7 +864,7 @@ export function SermonForm({
                 required={!isUploadInProgress && values.sourceType === "upload"}
               />
 
-              <p className="mt-2 text-xs leading-5 text-stone-500">
+              <p className="mt-2 text-xs leading-5 text-ink-soft">
                 Tip: drag a recording anywhere on this page.
                 Upload and transcription start immediately so
                 you can fill out the rest while it runs.
@@ -876,8 +876,8 @@ export function SermonForm({
                   className={cn(
                     "mt-2 text-xs font-medium leading-5",
                     dragDropNotice.tone === "success"
-                      ? "text-green-800"
-                      : "text-red-700"
+                      ? "text-mint"
+                      : "text-red-400"
                   )}
                 >
                   {dragDropNotice.text}
@@ -890,7 +890,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="youtubeUrl"
-                className="block text-sm font-medium text-stone-800"
+                className="block text-sm font-medium text-ink"
               >
                 YouTube video URL
               </label>
@@ -902,23 +902,23 @@ export function SermonForm({
                 onChange={(event) =>
                   updateField("youtubeUrl", event.target.value)
                 }
-                className="mt-2 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm outline-none transition focus:border-[#012f11]"
+                className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
                 placeholder="https://www.youtube.com/watch?v=..."
                 required={values.sourceType === "youtube"}
               />
 
-              <p className="mt-2 text-xs leading-5 text-stone-500">
+              <p className="mt-2 text-xs leading-5 text-ink-soft">
                 For now, this records the sermon source. YouTube
                 caption importing and connected channels will be
                 implemented later.
               </p>
             </div>
           ) : null}
-<div className="border-t border-[#ddd8c8] pt-6">
+<div className="border-t border-edge pt-6">
   <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
     <label
       htmlFor="transcript"
-      className="block text-sm font-medium text-stone-800"
+      className="block text-sm font-medium text-ink"
     >
       {values.sourceType === "transcript"
         ? "Sermon transcript"
@@ -926,13 +926,13 @@ export function SermonForm({
     </label>
 
     {values.sourceType !== "transcript" ? (
-      <span className="text-xs font-medium text-stone-500">
+      <span className="text-xs font-medium text-ink-soft">
         Optional
       </span>
     ) : null}
   </div>
 
-  <p className="mt-2 text-sm leading-6 text-stone-600">
+  <p className="mt-2 text-sm leading-6 text-ink-soft">
     {values.sourceType === "transcript"
       ? "Paste the completed sermon transcript below."
       : isTranscribing
@@ -942,11 +942,11 @@ export function SermonForm({
 
   {isTranscribing ? (
     <div className="relative mt-3">
-      <div className="min-h-64 w-full rounded-2xl border border-[#ddd8c8] bg-stone-50/60 px-4 py-3 text-sm leading-6 text-stone-500 outline-none" />
+      <div className="min-h-64 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink-soft outline-none" />
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
-        <div className="flex items-center gap-3 rounded-2xl bg-white/80 px-5 py-3 shadow-sm backdrop-blur-sm">
+        <div className="flex items-center gap-3 rounded-2xl bg-panel/90 px-5 py-3 shadow-sm backdrop-blur-sm">
           <svg
-            className="h-5 w-5 animate-spin text-[#012f11]"
+            className="h-5 w-5 animate-spin text-primary"
             xmlns="http://www.w3.org/2000/svg"
             fill="none"
             viewBox="0 0 24 24"
@@ -954,7 +954,7 @@ export function SermonForm({
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
-          <span className="text-sm font-medium text-[#012f11]">
+          <span className="text-sm font-medium text-primary">
             Transcribing your recording…
           </span>
         </div>
@@ -971,9 +971,9 @@ export function SermonForm({
         updateField("transcript", event.target.value);
       }}
       className={cn(
-        "mt-3 min-h-64 w-full rounded-2xl border border-[#ddd8c8] bg-white px-4 py-3 text-sm leading-6 outline-none transition focus:border-[#012f11]",
+        "mt-3 min-h-64 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink outline-none transition focus:border-primary",
         autoTranscript
-          ? "border-[#012f11] ring-1 ring-green-200"
+          ? "border-primary ring-1 ring-mint/40"
           : "",
       )}
       placeholder={
@@ -985,7 +985,7 @@ export function SermonForm({
     />
   )}
 
-  <div className="mt-2 flex flex-col gap-1 text-xs text-stone-500 sm:flex-row sm:items-center sm:justify-between">
+  <div className="mt-2 flex flex-col gap-1 text-xs text-ink-soft sm:flex-row sm:items-center sm:justify-between">
     <p>
       {autoTranscript
         ? "Your recording has been transcribed. Review and edit as needed."
@@ -1010,7 +1010,7 @@ export function SermonForm({
   {autoTranscript ? (
     <p
       role="status"
-      className="mt-2 text-xs font-medium text-green-800"
+      className="mt-2 text-xs font-medium text-mint"
     >
       Transcription complete! You can view and edit the full
       text above, then explore the AI Draft in the workspace.
@@ -1025,7 +1025,7 @@ export function SermonForm({
       <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
         <Link
           href={isEdit ? `/app/sermons/${sermon!.id}` : "/app/sermons"}
-          className="inline-flex items-center justify-center rounded-full border border-stone-300 bg-[#fffdf7] px-5 py-2.5 text-sm font-medium text-stone-950 transition hover:bg-stone-100"
+          className="inline-flex items-center justify-center rounded-full border border-edge bg-panel-2 px-5 py-2.5 text-sm font-medium text-ink transition hover:bg-panel"
         >
           Cancel
         </Link>
@@ -1048,31 +1048,31 @@ export function SermonForm({
 
       {isDraggingFile ? (
         <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-[#012f11]/95 p-6"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 p-6"
           onDragOver={(event) => event.preventDefault()}
           onDrop={(event) => event.preventDefault()}
         >
           <div
             role="status"
-            className="w-full max-w-md rounded-3xl border-2 border-dashed border-lime-300/70 bg-[#fffdf7] p-10 text-center shadow-xl"
+            className="w-full max-w-md rounded-3xl border-2 border-dashed border-primary/60 bg-panel p-10 text-center shadow-xl"
           >
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-[#012f11]">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-primary">
               <span
-                className="h-5 w-5 rotate-45 rounded-[4px] bg-lime-300"
+                className="h-5 w-5 rotate-45 rounded-[4px] bg-ink"
                 aria-hidden="true"
               />
             </div>
 
-            <p className="mt-6 text-xl font-semibold text-[#102015]">
+            <p className="mt-6 text-xl font-semibold text-ink">
               Drop to add your recording
             </p>
 
-            <p className="mt-2 text-sm leading-6 text-stone-600">
+            <p className="mt-2 text-sm leading-6 text-ink-soft">
               Release the file anywhere on this page and it will be
               attached as the sermon recording.
             </p>
 
-            <p className="mt-5 text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
+            <p className="mt-5 text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">
               MP3 · M4A · WAV · MP4 · WebM
             </p>
           </div>

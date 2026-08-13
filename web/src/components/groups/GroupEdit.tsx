@@ -133,16 +133,16 @@ export function GroupEdit({ groupId }: GroupEditProps) {
       <div className="space-y-6 py-10">
         <Link
           href="/app/groups"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-primary"
         >
           <span aria-hidden="true">←</span>
           Back to groups
         </Link>
         <div>
-          <h1 className="text-2xl font-semibold text-[#102015]">
+          <h1 className="text-2xl font-semibold text-ink">
             Unable to load this group
           </h1>
-          <p className="mt-2 text-sm leading-6 text-stone-600">{error}</p>
+          <p className="mt-2 text-sm leading-6 text-ink-soft">{error}</p>
         </div>
       </div>
     );
@@ -151,7 +151,7 @@ export function GroupEdit({ groupId }: GroupEditProps) {
   if (group === null) {
     return (
       <Card>
-        <p className="py-8 text-center text-sm text-stone-500">
+        <p className="py-8 text-center text-sm text-ink-soft">
           Loading group…
         </p>
       </Card>
@@ -163,7 +163,7 @@ export function GroupEdit({ groupId }: GroupEditProps) {
       <div className="mb-6">
         <Link
           href="/app/groups"
-          className="inline-flex items-center gap-1.5 text-sm font-medium text-stone-600 transition hover:text-[#012f11]"
+          className="inline-flex items-center gap-1.5 text-sm font-medium text-ink-soft transition hover:text-primary"
         >
           <span aria-hidden="true">←</span>
           Back to groups
@@ -177,16 +177,16 @@ export function GroupEdit({ groupId }: GroupEditProps) {
       />
 
       {savedMessage ? (
-        <p className="text-sm font-medium text-green-800">{savedMessage}</p>
+        <p className="text-sm font-medium text-mint">{savedMessage}</p>
       ) : null}
 
       <Card>
         <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <h2 className="text-lg font-semibold text-[#102015]">
+            <h2 className="text-lg font-semibold text-ink">
               Members in this group
             </h2>
-            <p className="mt-0.5 text-sm text-stone-500">
+            <p className="mt-0.5 text-sm text-ink-soft">
               {draftIds.size} {draftIds.size === 1 ? "member" : "members"}
               {hasPendingChanges ? " · unsaved changes" : ""}
             </p>
@@ -217,7 +217,7 @@ export function GroupEdit({ groupId }: GroupEditProps) {
         </div>
 
         {memberError ? (
-          <p className="mb-4 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700">
+          <p className="mb-4 rounded-lg border border-red-500/30 bg-red-500/10 px-3 py-2 text-sm text-red-300">
             {memberError}
           </p>
         ) : null}
@@ -242,10 +242,10 @@ export function GroupEdit({ groupId }: GroupEditProps) {
           <div className="space-y-3">
             {addedIds.length > 0 ? (
               <div>
-                <p className="text-sm font-semibold text-green-800">
+                <p className="text-sm font-semibold text-mint">
                   Adding ({addedIds.length})
                 </p>
-                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-stone-600">
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-ink-soft">
                   {addedIds.map((id) => (
                     <li key={id}>{nameById.get(id) ?? "Member"}</li>
                   ))}
@@ -255,10 +255,10 @@ export function GroupEdit({ groupId }: GroupEditProps) {
 
             {removedIds.length > 0 ? (
               <div>
-                <p className="text-sm font-semibold text-red-700">
+                <p className="text-sm font-semibold text-red-400">
                   Removing ({removedIds.length})
                 </p>
-                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-stone-600">
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-ink-soft">
                   {removedIds.map((id) => (
                     <li key={id}>{nameById.get(id) ?? "Member"}</li>
                   ))}

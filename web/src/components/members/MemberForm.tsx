@@ -20,7 +20,7 @@ interface MemberFormProps {
 }
 
 const inputClass =
-  "w-full rounded-xl border border-[#ddd8c8] bg-white px-3 py-2 text-sm outline-none transition focus:border-[#012f11]";
+  "w-full rounded-xl border border-edge bg-panel-2 px-3 py-2 text-sm text-ink outline-none transition focus:border-primary";
 
 export function MemberForm({
   member,
@@ -87,7 +87,7 @@ export function MemberForm({
 
   return (
     <Card>
-      <h2 className="text-lg font-semibold text-[#102015]">
+      <h2 className="text-lg font-semibold text-ink">
         {member ? "Edit member" : "Add member"}
       </h2>
 
@@ -99,7 +99,7 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberFirstName"
-              className="mb-1 block text-sm font-medium text-stone-800"
+              className="mb-1 block text-sm font-medium text-ink"
             >
               First name
             </label>
@@ -116,7 +116,7 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberLastName"
-              className="mb-1 block text-sm font-medium text-stone-800"
+              className="mb-1 block text-sm font-medium text-ink"
             >
               Last name
             </label>
@@ -135,7 +135,7 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberEmail"
-              className="mb-1 block text-sm font-medium text-stone-800"
+              className="mb-1 block text-sm font-medium text-ink"
             >
               Email
             </label>
@@ -153,9 +153,9 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberPhone"
-              className="mb-1 block text-sm font-medium text-stone-800"
+              className="mb-1 block text-sm font-medium text-ink"
             >
-              Phone <span className="text-stone-400">(optional)</span>
+              Phone <span className="text-ink-soft">(optional)</span>
             </label>
             <input
               id="memberPhone"
@@ -170,7 +170,7 @@ export function MemberForm({
         <div>
           <label
             htmlFor="memberStatus"
-            className="mb-1 block text-sm font-medium text-stone-800"
+            className="mb-1 block text-sm font-medium text-ink"
           >
             Status
           </label>
@@ -192,7 +192,7 @@ export function MemberForm({
         <div>
           <label
             htmlFor="memberRole"
-            className="mb-1 block text-sm font-medium text-stone-800"
+            className="mb-1 block text-sm font-medium text-ink"
           >
             Role
           </label>
@@ -215,9 +215,9 @@ export function MemberForm({
         <div>
           <label
             htmlFor="memberNotes"
-            className="mb-1 block text-sm font-medium text-stone-800"
+            className="mb-1 block text-sm font-medium text-ink"
           >
-            Notes <span className="text-stone-400">(optional)</span>
+            Notes <span className="text-ink-soft">(optional)</span>
           </label>
           <textarea
             id="memberNotes"
@@ -231,20 +231,20 @@ export function MemberForm({
 
         {groups.length > 0 ? (
           <div>
-            <span className="mb-1 block text-sm font-medium text-stone-800">
-              Groups <span className="text-stone-400">(optional)</span>
+            <span className="mb-1 block text-sm font-medium text-ink">
+              Groups <span className="text-ink-soft">(optional)</span>
             </span>
-            <div className="grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-[#ddd8c8] bg-white p-2 sm:grid-cols-2">
+            <div className="grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-edge bg-panel-2 p-2 sm:grid-cols-2">
               {groups.map((group) => (
                 <label
                   key={group.id}
-                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-stone-700 transition hover:bg-stone-100"
+                  className="flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm text-ink-soft transition hover:bg-panel"
                 >
                   <input
                     type="checkbox"
                     checked={selectedGroupIds.includes(group.id)}
                     onChange={() => toggleGroup(group.id)}
-                    className="h-4 w-4 rounded border-stone-300 text-[#012f11] focus:ring-[#012f11]"
+                    className="h-4 w-4 rounded border-edge accent-primary"
                   />
                   {group.name}
                 </label>

@@ -28,14 +28,14 @@ export function EmailPreview({
     : "Generate a follow-up draft to preview the email church members will receive.";
 
   return (
-    <Card className="h-full bg-stone-100/70">
+    <Card className="h-full">
       <div className="flex items-start justify-between gap-4">
         <div>
-          <p className="text-xs font-medium uppercase tracking-[0.16em] text-stone-500">
+          <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">
             Member preview
           </p>
 
-          <h2 className="mt-2 text-xl font-semibold text-[#102015]">
+          <h2 className="mt-2 text-xl font-semibold text-ink">
             Email preview
           </h2>
         </div>
@@ -58,7 +58,7 @@ export function EmailPreview({
 
         <div className="px-6 py-8">
           <div className="mb-8">
-            <p className="text-lg font-semibold text-[#012f11]">
+            <p className="text-lg font-semibold text-primary">
               After Sunday
             </p>
 
