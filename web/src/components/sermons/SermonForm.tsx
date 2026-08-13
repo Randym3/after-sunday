@@ -51,6 +51,10 @@ interface SermonFormProps {
    * (the file was already dropped and uploaded).
    */
   isUploadInProgress?: boolean;
+  /**
+   * Edit mode only: re-run transcription on the existing recording.
+   */
+  onTranscribe?: () => void | Promise<void>;
 }
 
 const sourceOptions: Array<{
@@ -80,6 +84,69 @@ const sourceOptions: Array<{
   },
 ];
 
+function SparklesIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.6"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M9.937 15.5A2 2 0 0 0 8.5 14.063l-6.135-1.582a.5.5 0 0 1 0-.962L8.5 9.936A2 2 0 0 0 9.937 8.5l1.582-6.135a.5.5 0 0 1 .963 0L14.063 8.5A2 2 0 0 0 15.5 9.937l6.135 1.581a.5.5 0 0 1 0 .964L15.5 14.063a2 2 0 0 0-1.437 1.437l-1.582 6.135a.5.5 0 0 1-.963 0z" />
+      <path d="M20 3v4" />
+      <path d="M22 5h-4" />
+      <path d="M4 17v2" />
+      <path d="M5 18H3" />
+    </svg>
+  );
+}
+
+function TranscribingIndicator({ className }: { className?: string }) {
+  return (
+    <p
+      role="status"
+      aria-live="polite"
+      className={cn(
+        "flex items-center gap-1.5 text-xs font-medium text-primary",
+        className
+      )}
+    >
+      <SparklesIcon className="h-4 w-4" />
+      <span
+        aria-hidden="true"
+        className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-transparent border-r-primary border-t-primary"
+      />
+      Transcribing your recording…
+    </p>
+  );
+}
+
+function RotateCwIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      width="16"
+      height="16"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.8"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      className={className}
+      aria-hidden="true"
+    >
+      <path d="M21 12a9 9 0 1 1-2.64-6.36" />
+      <path d="M21 3v6h-6" />
+    </svg>
+  );
+}
+
 export function SermonForm({
   sermon,
   onSubmit,
@@ -89,6 +156,7 @@ export function SermonForm({
   onFileDrop,
   transcribingTranscript,
   isUploadInProgress = false,
+  onTranscribe,
 }: SermonFormProps) {
   const isEdit = Boolean(sermon);
   const isTranscribing =
@@ -98,10 +166,25 @@ export function SermonForm({
       ? transcribingTranscript
       : null;
 
+  // Edit mode: transcription in flight — lock the transcript field so
+  // staff can't edit it while it's still being generated.
+  const isEditTranscribing =
+    isEdit &&
+    (sermon?.transcriptStatus === "queued" ||
+      sermon?.transcriptStatus === "processing");
+
   const hasExistingMedia =
     isEdit &&
     sermon?.sourceType === "upload" &&
     !!sermon?.mediaStorageKey;
+  const canTranscribeAgain =
+    hasExistingMedia &&
+    (sermon?.transcriptStatus === "ready" ||
+      sermon?.transcriptStatus === "failed");
+  // Stable for the lifetime of this sermon — the workspace polls the sermon
+  // row every couple of seconds while transcribing, and we must NOT re-fetch
+  // (and thus remount) the media blob when only the transcript changes.
+  const sermonId = sermon?.id;
   const [showSourceEditor, setShowSourceEditor] =
     useState(!hasExistingMedia);
   const [mediaBlobUrl, setMediaBlobUrl] = useState<
@@ -112,9 +195,11 @@ export function SermonForm({
   const videoRef = useRef<HTMLVideoElement>(null);
 
   // Fetch uploaded media as a blob URL so <video>/<audio> can play it
-  // with auth (plain <video src> can't send a Bearer header).
+  // with auth (plain <video src> can't send a Bearer header). Keyed on the
+  // sermon id — not the whole sermon object — so the 2s transcription poll
+  // doesn't tear down and refetch the media (which would restart playback).
   useEffect(() => {
-    if (!hasExistingMedia || !sermon) {
+    if (!hasExistingMedia || !sermonId) {
       return;
     }
 
@@ -133,7 +218,7 @@ export function SermonForm({
           "http://localhost:8000";
 
         const response = await fetch(
-          `${API_BASE}/sermons/${sermon.id}/media`,
+          `${API_BASE}/sermons/${sermonId}/media`,
           { headers: { Authorization: `Bearer ${token}` } },
         );
 
@@ -166,7 +251,7 @@ export function SermonForm({
         return null;
       });
     };
-  }, [hasExistingMedia, sermon]);
+  }, [hasExistingMedia, sermonId]);
 
   const [values, setValues] = useState<CreateSermonInput>(() => ({
     title: sermon?.title ?? "",
@@ -195,11 +280,32 @@ export function SermonForm({
 
   const [mediaFile, setMediaFile] = useState<File | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [isRetranscribing, setIsRetranscribing] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoaded, setMembersLoaded] = useState(false);
-  const [preacherMode, setPreacherMode] = useState<
-    "directory" | "manual"
-  >("directory");
+  const [preacherOverride, setPreacherOverride] = useState<
+    "directory" | "manual" | null
+  >(null);
+
+  const normalizedPreacher = (values.preacher ?? "")
+    .trim()
+    .toLowerCase();
+
+  const preacherInDirectory = members.some(
+    (member) =>
+      `${member.firstName} ${member.lastName}`
+        .trim()
+        .toLowerCase() === normalizedPreacher
+  );
+
+  // Default to the manual input when editing a preacher who isn't in the
+  // directory, so the saved name stays visible instead of showing an empty
+  // directory dropdown. The toggle below can still override this.
+  const effectivePreacherMode: "directory" | "manual" =
+    preacherOverride ??
+    (isEdit && normalizedPreacher && !preacherInDirectory
+      ? "manual"
+      : "directory");
 
   useEffect(() => {
     let cancelled = false;
@@ -352,6 +458,19 @@ export function SermonForm({
     }));
   }
 
+  async function handleTranscribeAgain() {
+    if (!onTranscribe || isRetranscribing) {
+      return;
+    }
+
+    setIsRetranscribing(true);
+    try {
+      await onTranscribe();
+    } finally {
+      setIsRetranscribing(false);
+    }
+  }
+
   function validateSubmission() {
     // If a file was already dropped + uploaded, we don't need to check for
     // a local mediaFile — the upload is already in progress or complete.
@@ -399,7 +518,7 @@ export function SermonForm({
         values.sourceType === "youtube"
           ? values.youtubeUrl?.trim()
           : undefined,
-      transcript: values.transcript?.trim() || undefined,
+      transcript: displayedTranscript.trim() || undefined,
     };
 
     try {
@@ -449,7 +568,7 @@ export function SermonForm({
             <div className="md:col-span-2">
               <label
                 htmlFor="title"
-                className="block text-sm font-medium text-ink"
+                className="block text-sm font-semibold text-ink"
               >
                 Sermon title
               </label>
@@ -477,12 +596,12 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="preacher"
-                className="block text-sm font-medium text-ink"
+                className="block text-sm font-semibold text-ink"
               >
                 Preacher
               </label>
 
-              {preacherMode === "directory" &&
+              {effectivePreacherMode === "directory" &&
               membersLoaded &&
               members.length > 0 ? (
                 <select
@@ -515,7 +634,7 @@ export function SermonForm({
                   }
                   className="mt-2 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm text-ink outline-none transition focus:border-primary"
                   placeholder={
-                    preacherMode === "manual"
+                    effectivePreacherMode === "manual"
                       ? "Guest preacher name"
                       : "Pastor John"
                   }
@@ -525,13 +644,15 @@ export function SermonForm({
               <button
                 type="button"
                 onClick={() =>
-                  setPreacherMode((mode) =>
-                    mode === "directory" ? "manual" : "directory"
+                  setPreacherOverride(
+                    effectivePreacherMode === "directory"
+                      ? "manual"
+                      : "directory"
                   )
                 }
                 className="mt-2 text-xs font-medium text-primary underline underline-offset-2 transition hover:text-ink"
               >
-                {preacherMode === "directory"
+                {effectivePreacherMode === "directory"
                   ? "Not in the directory? Enter a name"
                   : "Choose from directory"}
               </button>
@@ -540,7 +661,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="scriptureReference"
-                className="block text-sm font-medium text-ink"
+                className="block text-sm font-semibold text-ink"
               >
                 Scripture reference
               </label>
@@ -562,7 +683,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="preachedAt"
-                className="block text-sm font-medium text-ink"
+                className="block text-sm font-semibold text-ink"
               >
                 Date preached
               </label>
@@ -592,10 +713,24 @@ export function SermonForm({
       {hasExistingMedia && !showSourceEditor ? (
         <Card>
           <div className="space-y-5">
-            <div>
+            <div className="flex items-start justify-between">
               <h2 className="text-lg font-semibold text-ink">
                 Uploaded recording
               </h2>
+
+              {canTranscribeAgain ? (
+                <button
+                  type="button"
+                  onClick={handleTranscribeAgain}
+                  disabled={isRetranscribing}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-edge bg-panel-2 px-3 py-1.5 text-xs font-medium text-ink transition hover:bg-panel disabled:cursor-not-allowed disabled:opacity-50"
+                >
+                  <RotateCwIcon className="h-3.5 w-3.5" />
+                  {isRetranscribing
+                    ? "Transcribing…"
+                    : "Transcribe again"}
+                </button>
+              ) : null}
             </div>
 
             <div className="grid gap-6 lg:grid-cols-2">
@@ -678,7 +813,7 @@ export function SermonForm({
                 <div className="flex items-center justify-between">
                   <label
                     htmlFor="transcript"
-                    className="text-sm font-medium text-ink"
+                    className="text-sm font-semibold text-ink"
                   >
                     Transcript
                   </label>
@@ -701,14 +836,23 @@ export function SermonForm({
                     setTranscriptEdited(true);
                     updateField("transcript", event.target.value);
                   }}
-                  className="mt-2 min-h-64 w-full flex-1 resize-y rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink outline-none transition focus:border-primary"
+                  readOnly={isEditTranscribing}
+                  className={cn(
+                    "mt-2 min-h-64 w-full flex-1 resize-y rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink outline-none transition focus:border-primary",
+                    isEditTranscribing &&
+                      "cursor-not-allowed bg-panel text-ink-soft"
+                  )}
                   placeholder="No transcript yet — it will appear here after transcription."
                 />
 
-                <p className="mt-2 text-xs leading-5 text-ink-soft">
-                  Editable transcript. The AI Draft tab uses this text
-                  as the source for generating follow-up content.
-                </p>
+                {isEditTranscribing ? (
+                  <TranscribingIndicator className="mt-2" />
+                ) : (
+                  <p className="mt-2 text-xs leading-5 text-ink-soft">
+                    Editable transcript. The AI Draft tab uses this text
+                    as the source for generating follow-up content.
+                  </p>
+                )}
               </div>
             </div>
           </div>
@@ -809,7 +953,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="mediaFile"
-                className="block text-sm font-medium text-ink"
+                className="block text-sm font-semibold text-ink"
               >
                 Audio or video recording
               </label>
@@ -890,7 +1034,7 @@ export function SermonForm({
             <div>
               <label
                 htmlFor="youtubeUrl"
-                className="block text-sm font-medium text-ink"
+                className="block text-sm font-semibold text-ink"
               >
                 YouTube video URL
               </label>
@@ -918,7 +1062,7 @@ export function SermonForm({
   <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
     <label
       htmlFor="transcript"
-      className="block text-sm font-medium text-ink"
+      className="block text-sm font-semibold text-ink"
     >
       {values.sourceType === "transcript"
         ? "Sermon transcript"
@@ -935,7 +1079,7 @@ export function SermonForm({
   <p className="mt-2 text-sm leading-6 text-ink-soft">
     {values.sourceType === "transcript"
       ? "Paste the completed sermon transcript below."
-      : isTranscribing
+      : isTranscribing || isEditTranscribing
         ? "Your recording is being transcribed now. The text will appear here automatically."
         : "Paste an existing transcript to skip automatic transcription. You can review and edit it after creating the sermon."}
   </p>
@@ -961,35 +1105,44 @@ export function SermonForm({
       </div>
     </div>
   ) : (
-    <textarea
-      id="transcript"
-      value={displayedTranscript}
-      onChange={(event) => {
-        setTranscriptEdited(true);
-        // When the user edits the auto-transcript, write it into values
-        // (which may have been autoTranscript-derived until now).
-        updateField("transcript", event.target.value);
-      }}
-      className={cn(
-        "mt-3 min-h-64 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink outline-none transition focus:border-primary",
-        autoTranscript
-          ? "border-primary ring-1 ring-mint/40"
-          : "",
-      )}
-      placeholder={
-        values.sourceType === "transcript"
-          ? "Paste the sermon transcript here…"
-          : "Optional: paste an existing transcript here…"
-      }
-      required={values.sourceType === "transcript"}
-    />
+    <>
+      <textarea
+        id="transcript"
+        value={displayedTranscript}
+        onChange={(event) => {
+          setTranscriptEdited(true);
+          // When the user edits the auto-transcript, write it into values
+          // (which may have been autoTranscript-derived until now).
+          updateField("transcript", event.target.value);
+        }}
+        readOnly={isEditTranscribing}
+        className={cn(
+          "mt-3 min-h-64 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink outline-none transition focus:border-primary",
+          autoTranscript
+            ? "border-primary ring-1 ring-mint/40"
+            : "",
+          isEditTranscribing &&
+            "cursor-not-allowed bg-panel text-ink-soft",
+        )}
+        placeholder={
+          values.sourceType === "transcript"
+            ? "Paste the sermon transcript here…"
+            : "Optional: paste an existing transcript here…"
+        }
+        required={values.sourceType === "transcript"}
+      />
+
+      {isEditTranscribing ? (
+        <TranscribingIndicator className="mt-3" />
+      ) : null}
+    </>
   )}
 
   <div className="mt-2 flex flex-col gap-1 text-xs text-ink-soft sm:flex-row sm:items-center sm:justify-between">
     <p>
       {autoTranscript
         ? "Your recording has been transcribed. Review and edit as needed."
-        : isTranscribing
+        : isTranscribing || isEditTranscribing
           ? "Transcription is running — it will appear above when ready."
           : values.sourceType === "transcript"
             ? "A transcript is required for this source."

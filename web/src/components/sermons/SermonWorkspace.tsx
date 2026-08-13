@@ -6,6 +6,7 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   generateFollowUp as generateFollowUpApi,
   getSermon,
+  transcribeSermon,
   updateSermon,
 } from "@/lib/api/sermons";
 import type { SermonUpdate } from "@/lib/api/sermons";
@@ -344,6 +345,61 @@ export function SermonWorkspace({
     });
   }
 
+  async function transcribeAgain() {
+    if (
+      sermon.transcriptStatus === "queued" ||
+      sermon.transcriptStatus === "processing"
+    ) {
+      return;
+    }
+
+    // Re-transcribing replaces the source transcript, so any follow-up
+    // draft derived from the old transcript is invalidated.
+    commitSermon({
+      ...sermon,
+      transcript: null,
+      transcriptError: null,
+      transcriptStatus: "queued",
+      followUpSubject: null,
+      followUpBody: null,
+      aiDraftStatus: "not_started",
+      emailStatus: "not_started",
+    });
+
+    if (!isPersistedSermon) {
+      // Demo path — simulate the worker finishing.
+      await new Promise((resolve) =>
+        window.setTimeout(resolve, 1500)
+      );
+      commitSermon({
+        ...sermon,
+        transcript: demoTranscript,
+        transcriptStatus: "ready",
+      });
+      return;
+    }
+
+    try {
+      const serverSermon = await transcribeSermon(sermonId);
+      setPersistedSermon((current) =>
+        current ? { ...current, ...serverSermon } : serverSermon
+      );
+    } catch (error) {
+      setPersistedSermon((current) =>
+        current
+          ? {
+              ...current,
+              transcriptStatus: "failed",
+              transcriptError:
+                error instanceof Error
+                  ? error.message
+                  : "Unable to restart transcription.",
+            }
+          : current
+      );
+    }
+  }
+
   async function generateFollowUp() {
     if (
       sermon.transcriptStatus !== "ready" ||
@@ -632,6 +688,7 @@ export function SermonWorkspace({
         >
           <SermonForm
             sermon={sermon}
+            onTranscribe={transcribeAgain}
             onSubmit={async (values) => {
               const wasDrafted =
                 sermon.aiDraftStatus === "draft_ready" ||
@@ -733,9 +790,10 @@ export function SermonWorkspace({
           )}
           aria-hidden={tab !== "ai"}
         >
-          {/* Transcript — read-only */}
-          <Card>
-            <div className="flex flex-col gap-4 border-b border-edge pb-5 sm:flex-row sm:items-start sm:justify-between">
+          {/* Transcript — read-only, soft cream panel so it reads as a
+              distinct surface, with dark text for legibility. */}
+          <div className="rounded-3xl bg-[#d6e0e0] p-6 shadow-card">
+            <div className="flex flex-col gap-4 border-b border-[#c2cdcd] pb-5 sm:flex-row sm:items-start sm:justify-between">
               <div>
                 <h2 className="text-lg font-semibold text-ink">
                   Sermon transcript
@@ -765,10 +823,10 @@ export function SermonWorkspace({
                 {sermon.transcriptStatus === "failed" &&
                 sermon.transcriptError ? (
                   <div className="mx-auto mt-4 max-w-lg rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 text-left">
-                    <p className="text-sm font-medium text-red-300">
+                    <p className="text-sm font-medium text-red-700">
                       Error details
                     </p>
-                    <p className="mt-1 break-words font-mono text-xs leading-5 text-red-400">
+                    <p className="mt-1 break-words font-mono text-xs leading-5 text-red-600">
                       {sermon.transcriptError}
                     </p>
                   </div>
@@ -794,7 +852,7 @@ export function SermonWorkspace({
             ) : (
               <div className="pt-6">
                 <div className="max-h-72 overflow-y-auto pr-3">
-                  <p className="whitespace-pre-wrap italic leading-7 text-ink-soft">
+                  <p className="whitespace-pre-wrap italic leading-7 text-ink">
                     {sermon.transcript?.trim() ||
                       "No transcript available yet. Switch to the Sermon Details tab to add or edit the transcript."}
                   </p>
@@ -805,7 +863,7 @@ export function SermonWorkspace({
                 </div>
               </div>
             )}
-          </Card>
+          </div>
 
           {/* Follow-up status */}
           <Card>

@@ -79,7 +79,7 @@ export function AuthForm({ mode }: AuthFormProps) {
 
       <form onSubmit={handleSubmit} className="space-y-5">
         <div>
-          <label htmlFor="email" className="block text-sm font-medium text-stone-800">
+          <label htmlFor="email" className="block text-sm font-semibold text-stone-800">
             Email
           </label>
           <input
@@ -97,7 +97,7 @@ export function AuthForm({ mode }: AuthFormProps) {
           <div className="flex items-center justify-between">
             <label
               htmlFor="password"
-              className="block text-sm font-medium text-stone-800"
+              className="block text-sm font-semibold text-stone-800"
             >
               Password
             </label>

@@ -138,7 +138,7 @@ export function ResetPasswordForm() {
         <div>
           <label
             htmlFor="password"
-            className="block text-sm font-medium text-stone-800"
+            className="block text-sm font-semibold text-stone-800"
           >
             New password
           </label>
@@ -157,7 +157,7 @@ export function ResetPasswordForm() {
         <div>
           <label
             htmlFor="confirm"
-            className="block text-sm font-medium text-stone-800"
+            className="block text-sm font-semibold text-stone-800"
           >
             Confirm new password
           </label>

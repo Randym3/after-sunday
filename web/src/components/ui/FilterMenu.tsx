@@ -125,7 +125,7 @@ export function FilterSidebar({
             <div key={col.key}>
               <label
                 htmlFor={`filter-${col.key}`}
-                className="mb-1.5 block text-xs font-medium text-ink-soft"
+                className="mb-1.5 block text-xs font-semibold text-ink-soft"
               >
                 {col.label}
               </label>

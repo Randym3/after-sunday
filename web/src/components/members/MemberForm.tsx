@@ -99,7 +99,7 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberFirstName"
-              className="mb-1 block text-sm font-medium text-ink"
+              className="mb-1 block text-sm font-semibold text-ink"
             >
               First name
             </label>
@@ -116,7 +116,7 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberLastName"
-              className="mb-1 block text-sm font-medium text-ink"
+              className="mb-1 block text-sm font-semibold text-ink"
             >
               Last name
             </label>
@@ -135,7 +135,7 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberEmail"
-              className="mb-1 block text-sm font-medium text-ink"
+              className="mb-1 block text-sm font-semibold text-ink"
             >
               Email
             </label>
@@ -153,7 +153,7 @@ export function MemberForm({
           <div>
             <label
               htmlFor="memberPhone"
-              className="mb-1 block text-sm font-medium text-ink"
+              className="mb-1 block text-sm font-semibold text-ink"
             >
               Phone <span className="text-ink-soft">(optional)</span>
             </label>
@@ -170,7 +170,7 @@ export function MemberForm({
         <div>
           <label
             htmlFor="memberStatus"
-            className="mb-1 block text-sm font-medium text-ink"
+            className="mb-1 block text-sm font-semibold text-ink"
           >
             Status
           </label>
@@ -192,7 +192,7 @@ export function MemberForm({
         <div>
           <label
             htmlFor="memberRole"
-            className="mb-1 block text-sm font-medium text-ink"
+            className="mb-1 block text-sm font-semibold text-ink"
           >
             Role
           </label>
@@ -215,7 +215,7 @@ export function MemberForm({
         <div>
           <label
             htmlFor="memberNotes"
-            className="mb-1 block text-sm font-medium text-ink"
+            className="mb-1 block text-sm font-semibold text-ink"
           >
             Notes <span className="text-ink-soft">(optional)</span>
           </label>
@@ -231,7 +231,7 @@ export function MemberForm({
 
         {groups.length > 0 ? (
           <div>
-            <span className="mb-1 block text-sm font-medium text-ink">
+            <span className="mb-1 block text-sm font-semibold text-ink">
               Groups <span className="text-ink-soft">(optional)</span>
             </span>
             <div className="grid max-h-40 grid-cols-1 gap-1 overflow-y-auto rounded-xl border border-edge bg-panel-2 p-2 sm:grid-cols-2">

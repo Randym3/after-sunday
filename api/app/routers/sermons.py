@@ -152,6 +152,60 @@ def update_transcript(
     return sermon
 
 
+@router.post("/{sermon_id}/transcribe", response_model=SermonRead)
+def transcribe_sermon(
+    sermon_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    """Re-queue transcription for a sermon that already has a recording."""
+    sermon = _get_sermon_or_404(db, sermon_id)
+
+    if not sermon.media_storage_key:
+        raise HTTPException(
+            status_code=400,
+            detail="This sermon has no recording to transcribe.",
+        )
+
+    provider = build_provider()
+
+    sermon.transcript = None
+    sermon.transcript_error = None
+    sermon.transcript_status = "queued"
+
+    # Re-transcribing replaces the source transcript, so any follow-up draft
+    # derived from the old transcript is no longer valid.
+    sermon.follow_up_subject = None
+    sermon.follow_up_body = None
+    sermon.ai_draft_status = "not_started"
+    sermon.email_status = "not_started"
+
+    job = db.scalars(
+        select(TranscriptionJob).where(
+            TranscriptionJob.sermon_id == sermon.id
+        )
+    ).first()
+    if job is None:
+        job = TranscriptionJob(
+            id=sermon.id,
+            sermon_id=sermon.id,
+            provider=provider.provider_name,
+            status="queued",
+        )
+        db.add(job)
+    else:
+        job.provider = provider.provider_name
+        job.status = "queued"
+        job.result_text = None
+        job.error_message = None
+        job.started_at = None
+        job.completed_at = None
+
+    db.commit()
+    db.refresh(sermon)
+    return sermon
+
+
 @router.delete("/{sermon_id}", response_model=SermonRead)
 def delete_sermon(
     sermon_id: uuid.UUID,

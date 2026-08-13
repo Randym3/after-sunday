@@ -61,6 +61,12 @@ export function updateTranscript(
   });
 }
 
+export function transcribeSermon(sermonId: string): Promise<Sermon> {
+  return apiFetch<Sermon>(`/sermons/${sermonId}/transcribe`, {
+    method: "POST",
+  });
+}
+
 export function generateFollowUp(
   sermonId: string
 ): Promise<Sermon> {

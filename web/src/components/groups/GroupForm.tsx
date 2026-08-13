@@ -43,7 +43,7 @@ export function GroupForm({ group, onCancel, onSubmit }: GroupFormProps) {
         <div>
           <label
             htmlFor="groupName"
-            className="mb-1 block text-sm font-medium text-ink"
+            className="mb-1 block text-sm font-semibold text-ink"
           >
             Name
           </label>
@@ -61,7 +61,7 @@ export function GroupForm({ group, onCancel, onSubmit }: GroupFormProps) {
         <div>
           <label
             htmlFor="groupDescription"
-            className="mb-1 block text-sm font-medium text-ink"
+            className="mb-1 block text-sm font-semibold text-ink"
           >
             Description <span className="text-ink-soft">(optional)</span>
           </label>

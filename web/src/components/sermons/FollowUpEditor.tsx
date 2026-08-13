@@ -188,7 +188,7 @@ export function FollowUpEditor({
           <div>
             <label
               htmlFor="followUpSubject"
-              className="block text-sm font-medium text-ink"
+              className="block text-sm font-semibold text-ink"
             >
               Email subject
             </label>
@@ -207,7 +207,7 @@ export function FollowUpEditor({
           <div>
             <label
               htmlFor="followUpBody"
-              className="block text-sm font-medium text-ink"
+              className="block text-sm font-semibold text-ink"
             >
               Email message
             </label>
