@@ -6,7 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import members, sermons
+from app.routers import groups, members, sermons
 from app.services.transcription import build_provider, run_transcription_worker
 
 _transcription_task: asyncio.Task | None = None
@@ -44,6 +44,7 @@ app.add_middleware(
 
 app.include_router(sermons.router)
 app.include_router(members.router)
+app.include_router(groups.router)
 
 # Serve uploaded media in dev. In production a CDN or signed-URL middleware
 # would replace this.  The directory is created lazily by the local-disk
