@@ -9,7 +9,6 @@ export default function SermonsPage() {
     <>
       <PageHeader
         title="Sermons"
-        description="Create sermon follow-ups from transcripts and prepare messages for members who missed Sunday."
         action={
           <Link href="/app/sermons/new">
             <Button>Create Sermon</Button>

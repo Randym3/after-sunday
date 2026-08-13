@@ -9,7 +9,6 @@ export default function MembersPage() {
     <>
       <PageHeader
         title="Members"
-        description="People who receive sermon follow-ups. Add members to prepare encouragement for those who missed Sunday."
         action={
           <Link href="/app/members/new">
             <Button>Add Member</Button>
