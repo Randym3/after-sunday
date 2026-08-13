@@ -35,13 +35,16 @@ Pages that exist:
 /app/sermons/new
 /app/sermons/[sermonId]
 /app/members
+/app/members/new
 /app/members/[memberId]
+/app/groups
+/app/groups/new
+/app/groups/[groupId]
 ```
 
 The following routes are referenced in the sidebar (`web/src/lib/constants/navigation.ts`) but are **empty directories with no page.tsx** — visiting them 404s:
 
 ```txt
-/app/groups
 /app/email-campaigns
 /app/settings
 ```
@@ -144,7 +147,9 @@ Both sermons and members list pages use the shared `web/src/components/ui/DataTa
 
 **Sermons** (`/app/sermons`): table of title, preacher, date, statuses; wired to `GET /sermons` (fetch all, newest first); title links to the edit page.
 
-**Members** (`/app/members`): full CRUD against the backend; member roles selectable (Member, Pastor, Deacon, and more) with no role management yet; edit routes to `/app/members/[id]` like sermons.
+**Members** (`/app/members`): full CRUD against the backend; member roles selectable (Member, Pastor, Deacon, and more) with no role management yet; edit routes to `/app/members/[id]` like sermons. The member form includes a Groups multi-select (checkbox list) that syncs `groupIds` on create/edit.
+
+**Groups** (`/app/groups`): full CRUD against the backend via the shared `DataTable` (Name / Description / Members columns, filters, bulk delete); route-based create (`/app/groups/new`) and detail (`/app/groups/[id]`). The detail page edits name/description and manages members: an add-member dropdown plus an in-group member table with per-row remove (confirm dialog). Membership is many-to-many via the `group_members` table; deleting a group or member only removes the membership, never the other entity.
 
 ## Follow-Up Prototype
 
@@ -186,10 +191,21 @@ GET    /members                 -> list members (alphabetical)
 GET    /members/{id}            -> get one member
 PATCH  /members/{id}            -> partial update
 DELETE /members/{id}            -> delete member
+POST   /members/bulk-delete     -> delete many members
+POST   /groups                 -> create group (201; 409 on duplicate name)
+GET    /groups                 -> list groups with memberCount
+GET    /groups/{id}            -> get one group
+PATCH  /groups/{id}            -> partial update
+DELETE /groups/{id}            -> delete group (cascades memberships)
+POST   /groups/bulk-delete     -> delete many groups
+GET    /groups/{id}/members    -> list members in a group
+POST   /groups/{id}/members    -> add members (idempotent)
+DELETE /groups/{id}/members    -> remove members
 ```
 
 - **Postgres**: local Docker container (`api/docker-compose.yml`, `postgres:16-alpine`) mapped to host port **5433** because a native Postgres 17 (EDB, launchd) already occupies 5432 on this machine. Named volume `after_sunday_pgdata`.
-- **Migrations**: Alembic (`api/alembic/versions/`): `0001_create_sermons`, `0002_create_members`, `0003_add_member_role`, `0004_add_media_storage_fields` (adds `media_storage_key`, `media_size_bytes`, `media_content_type` to sermons).
+- **Migrations**: Alembic (`api/alembic/versions/`): `0001_create_sermons`, `0002_create_members`, `0003_add_member_role`, `0004_add_media_storage_fields` (adds `media_storage_key`, `media_size_bytes`, `media_content_type` to sermons), `0005_create_transcription_jobs`, `0006_add_sermon_transcript_error`, `0007_create_groups` (`groups` + `group_members` composite-PK join table, cascade both ways).
+- **Members** now carry `groupIds` (`MemberRead.group_ids` → camelCase `groupIds`), synced on create/update via `_sync_member_groups`; groups carry `memberCount`.
 - **Media storage**: `api/app/storage.py` defines a `StorageBackend` interface with a `LocalDiskBackend` writing to `api/storage/` (gitignored). Chunk requests are content-type-relaxed (dragged-in files often report `application/octet-stream`); init is idempotent so retries reuse the storage key. Production swaps in S3/R2/Supabase Storage behind the same interface.
 - **Auth**: every request requires `Authorization: Bearer <supabase access token>`; FastAPI resolves the user via Supabase's `GET /auth/v1/user` (no new dependency). **No ownership scoping** — any authenticated user can read/edit/delete any sermon or member (a deliberate dev decision after the ownership-wall removal; revisit with multi-tenancy).
 - **Models/schemas**: `api/app/models/{sermon,member}.py` (SQLAlchemy), `api/app/schemas/{sermon,member}.py` (Pydantic with camelCase aliases via `api/app/schemas/aliases.py` so the API speaks the frontend `Sermon`/`Member` types).

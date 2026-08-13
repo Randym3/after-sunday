@@ -114,7 +114,13 @@ After upload/transcription works:
 
 ## Phase 9 — Recipients and Groups
 
-Only after sermon-to-approved-follow-up is real.
+Status: groups complete (2026-08-12); email campaigns pending.
+
+- groups + group_members tables (migration 0007)
+- /groups CRUD + membership endpoints; MemberRead carries groupIds
+- groups list/create/detail pages; member form group multi-select
+- campaign/send engine (recipients resolved from a group, a
+  campaign-with-group, or explicit member ids) is the next slice
 
 ## Phase 10 — Email Sending
 
