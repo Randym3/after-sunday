@@ -50,8 +50,8 @@ interface DataTableProps<T> {
   emptyDescription: string;
   emptyAction?: ReactNode;
 
-  /** Extra controls above the table (e.g. Add Member + count). Receives the visible row count. */
-  renderToolbar?: (count: number) => ReactNode;
+  /** Renders the result count at the top-left, e.g. "54 sermons". */
+  countLabel: (count: number) => string;
 
   /** Bump this to force a refetch (e.g. after creating a row elsewhere). */
   reloadSignal?: number;
@@ -126,7 +126,7 @@ export function DataTable<T>({
   emptyTitle,
   emptyDescription,
   emptyAction,
-  renderToolbar,
+  countLabel,
   reloadSignal = 0,
 }: DataTableProps<T>) {
   const [rows, setRows] = useState<T[] | null>(null);
@@ -293,7 +293,11 @@ export function DataTable<T>({
   if (sorted.length === 0) {
     return (
       <div className="flex gap-4">
-        <div className="min-w-0 flex-1">
+        <div className="min-w-0 flex-1 space-y-3">
+          <p className="text-sm text-stone-600">
+            {countLabel(0)}
+          </p>
+
           {filteredCount > 0 ? (
             <EmptyState
               title="No results match your filters"
@@ -337,17 +341,17 @@ export function DataTable<T>({
   return (
     <div className="flex gap-4">
       <div className="min-w-0 flex-1 space-y-3">
+        <p className="text-sm text-stone-600">
+          {countLabel(sorted.length)}
+        </p>
+
         <FilterPills
           columns={filterColumns}
           filters={filters}
           onFiltersChange={setFilters}
         />
 
-        {renderToolbar ? (
-          <div className="flex items-center justify-end">
-            {renderToolbar(sorted.length)}
-          </div>
-        ) : null}
+
 
         {/* Bulk-delete action bar */}
         {selectedCount > 0 && onBulkDelete ? (

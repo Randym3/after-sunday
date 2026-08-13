@@ -115,6 +115,7 @@ export function SermonList() {
       fetchRows={listSermons}
       getRowId={(sermon) => sermon.id}
       defaultSort={{ key: "preachedAt", dir: "desc" }}
+      countLabel={(count) => `${count} ${count === 1 ? "sermon" : "sermons"}`}
       editHref={(sermon) => `/app/sermons/${sermon.id}`}
       onDelete={async (sermon) => {
         await deleteSermon(sermon.id);

@@ -1,12 +1,10 @@
 "use client";
 
 import Link from "next/link";
-import { useState } from "react";
 
-import { bulkDeleteMembers, createMember, deleteMember, listMembers } from "@/lib/api/members";
-import type { CreateMemberInput, Member } from "@/types/member";
+import { bulkDeleteMembers, deleteMember, listMembers } from "@/lib/api/members";
+import type { Member } from "@/types/member";
 
-import { MemberForm } from "@/components/members/MemberForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { DataTable } from "@/components/ui/DataTable";
@@ -100,21 +98,6 @@ const FILTER_COLUMNS: FilterColumn[] = [
 ];
 
 export function MemberList() {
-  const [showForm, setShowForm] = useState(false);
-
-  async function handleSubmit(values: CreateMemberInput) {
-    await createMember(values);
-    setShowForm(false);
-  }
-
-  if (showForm) {
-    return (
-      <div className="space-y-6">
-        <MemberForm onCancel={() => setShowForm(false)} onSubmit={handleSubmit} />
-      </div>
-    );
-  }
-
   return (
     <DataTable
       columns={COLUMNS}
@@ -122,6 +105,7 @@ export function MemberList() {
       fetchRows={listMembers}
       getRowId={(member) => member.id}
       defaultSort={{ key: "lastName", dir: "asc" }}
+      countLabel={(count) => `${count} ${count === 1 ? "member" : "members"}`}
       editHref={(member) => `/app/members/${member.id}`}
       onDelete={async (member) => {
         await deleteMember(member.id);
@@ -137,20 +121,10 @@ export function MemberList() {
       emptyTitle="No members yet"
       emptyDescription="Add members so you can prepare sermon follow-ups for people who missed Sunday."
       emptyAction={
-        <Button type="button" onClick={() => setShowForm(true)}>
-          Add Member
-        </Button>
+        <Link href="/app/members/new">
+          <Button>Add Member</Button>
+        </Link>
       }
-      renderToolbar={(count) => (
-        <div className="flex items-center gap-3">
-          <p className="text-sm text-stone-600">
-            {count} {count === 1 ? "member" : "members"}
-          </p>
-          <Button type="button" onClick={() => setShowForm(true)}>
-            Add Member
-          </Button>
-        </div>
-      )}
     />
   );
 }
