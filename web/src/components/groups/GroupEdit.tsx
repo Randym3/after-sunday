@@ -18,7 +18,9 @@ import type { Member } from "@/types/member";
 
 import { GroupForm } from "@/components/groups/GroupForm";
 import { GroupMemberPicker } from "@/components/groups/GroupMemberPicker";
+import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 
 function apiErrorToMessage(err: unknown): string {
   if (err instanceof ApiError && err.status === 401)
@@ -36,8 +38,10 @@ export function GroupEdit({ groupId }: GroupEditProps) {
   const [group, setGroup] = useState<Group | null>(null);
   const [error, setError] = useState("");
   const [allMembers, setAllMembers] = useState<Member[]>([]);
-  const [memberIds, setMemberIds] = useState<Set<string>>(new Set());
-  const [membersBusy, setMembersBusy] = useState(false);
+  const [savedIds, setSavedIds] = useState<Set<string>>(new Set());
+  const [draftIds, setDraftIds] = useState<Set<string>>(new Set());
+  const [showReview, setShowReview] = useState(false);
+  const [savingMembers, setSavingMembers] = useState(false);
   const [memberError, setMemberError] = useState("");
   const [savedMessage, setSavedMessage] = useState("");
 
@@ -52,7 +56,9 @@ export function GroupEdit({ groupId }: GroupEditProps) {
         if (!cancelled) {
           setGroup(g);
           setAllMembers(members);
-          setMemberIds(new Set(groupMembers.map((m) => m.id)));
+          const ids = new Set(groupMembers.map((m) => m.id));
+          setSavedIds(ids);
+          setDraftIds(ids);
         }
       })
       .catch((err: unknown) => {
@@ -62,6 +68,12 @@ export function GroupEdit({ groupId }: GroupEditProps) {
       cancelled = true;
     };
   }, [groupId]);
+
+  const nameById = new Map(allMembers.map((m) => [m.id, `${m.firstName} ${m.lastName}`]));
+
+  const addedIds = [...draftIds].filter((id) => !savedIds.has(id));
+  const removedIds = [...savedIds].filter((id) => !draftIds.has(id));
+  const hasPendingChanges = addedIds.length > 0 || removedIds.length > 0;
 
   async function handleFormSubmit(values: CreateGroupInput) {
     const updated = await updateGroup(groupId, values);
@@ -73,31 +85,46 @@ export function GroupEdit({ groupId }: GroupEditProps) {
     router.push("/app/groups");
   }
 
-  async function handleToggleMembership(memberId: string, add: boolean) {
-    if (membersBusy) return;
-    setMemberError("");
-
-    setMemberIds((prev) => {
+  function handleDraftToggle(memberId: string, add: boolean) {
+    if (savingMembers) return;
+    setDraftIds((prev) => {
       const next = new Set(prev);
       if (add) next.add(memberId);
       else next.delete(memberId);
       return next;
     });
+  }
 
-    setMembersBusy(true);
+  function discardChanges() {
+    setDraftIds(new Set(savedIds));
+    setMemberError("");
+  }
+
+  async function confirmSave() {
+    setSavingMembers(true);
+    setMemberError("");
     try {
-      if (add) await addGroupMembers(groupId, [memberId]);
-      else await removeGroupMembers(groupId, [memberId]);
+      if (addedIds.length > 0) {
+        await addGroupMembers(groupId, addedIds);
+      }
+      if (removedIds.length > 0) {
+        await removeGroupMembers(groupId, removedIds);
+      }
+      setSavedIds(new Set(draftIds));
+      setShowReview(false);
+      setSavedMessage("Group members updated.");
     } catch (err: unknown) {
       setMemberError(apiErrorToMessage(err));
       try {
         const ids = (await listGroupMembers(groupId)).map((m) => m.id);
-        setMemberIds(new Set(ids));
+        setSavedIds(new Set(ids));
+        setDraftIds(new Set(ids));
       } catch {
-        // Keep the optimistic state; the user can retry.
+        // Keep the draft; the user can retry.
       }
+      setShowReview(false);
     } finally {
-      setMembersBusy(false);
+      setSavingMembers(false);
     }
   }
 
@@ -154,13 +181,39 @@ export function GroupEdit({ groupId }: GroupEditProps) {
       ) : null}
 
       <Card>
-        <div className="mb-4 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-          <h2 className="text-lg font-semibold text-[#102015]">
-            Members in this group
-          </h2>
-          <span className="text-sm text-stone-500">
-            {memberIds.size} {memberIds.size === 1 ? "member" : "members"}
-          </span>
+        <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <h2 className="text-lg font-semibold text-[#102015]">
+              Members in this group
+            </h2>
+            <p className="mt-0.5 text-sm text-stone-500">
+              {draftIds.size} {draftIds.size === 1 ? "member" : "members"}
+              {hasPendingChanges ? " · unsaved changes" : ""}
+            </p>
+          </div>
+
+          <div className="flex items-center gap-2">
+            {hasPendingChanges ? (
+              <Button
+                type="button"
+                variant="secondary"
+                onClick={discardChanges}
+              >
+                Reset
+              </Button>
+            ) : null}
+            <Button
+              type="button"
+              onClick={() => setShowReview(true)}
+              disabled={!hasPendingChanges || savingMembers}
+            >
+              {savingMembers
+                ? "Saving…"
+                : hasPendingChanges
+                  ? `Save changes (${addedIds.length} +${removedIds.length} −)`
+                  : "Save changes"}
+            </Button>
+          </div>
         </div>
 
         {memberError ? (
@@ -171,12 +224,50 @@ export function GroupEdit({ groupId }: GroupEditProps) {
 
         <GroupMemberPicker
           members={allMembers}
-          memberIds={memberIds}
-          onAdd={(id) => handleToggleMembership(id, true)}
-          onRemove={(id) => handleToggleMembership(id, false)}
-          busy={membersBusy}
+          memberIds={draftIds}
+          onAdd={(id) => handleDraftToggle(id, true)}
+          onRemove={(id) => handleDraftToggle(id, false)}
+          busy={savingMembers}
         />
       </Card>
+
+      <ConfirmDialog
+        open={showReview}
+        title="Review changes"
+        confirmLabel={savingMembers ? "Saving…" : "Save changes"}
+        confirmVariant="primary"
+        onCancel={() => setShowReview(false)}
+        onConfirm={confirmSave}
+        description={
+          <div className="space-y-3">
+            {addedIds.length > 0 ? (
+              <div>
+                <p className="text-sm font-semibold text-green-800">
+                  Adding ({addedIds.length})
+                </p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-stone-600">
+                  {addedIds.map((id) => (
+                    <li key={id}>{nameById.get(id) ?? "Member"}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+
+            {removedIds.length > 0 ? (
+              <div>
+                <p className="text-sm font-semibold text-red-700">
+                  Removing ({removedIds.length})
+                </p>
+                <ul className="mt-1 list-disc space-y-0.5 pl-5 text-sm text-stone-600">
+                  {removedIds.map((id) => (
+                    <li key={id}>{nameById.get(id) ?? "Member"}</li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </div>
+        }
+      />
     </div>
   );
 }

@@ -1,15 +1,17 @@
 "use client";
 
-import { useEffect } from "react";
+import { ReactNode, useEffect } from "react";
 
 import { Button } from "@/components/ui/Button";
 
 interface ConfirmDialogProps {
   open: boolean;
   title: string;
-  description: string;
+  /** Plain text or JSX; use the latter for rich review lists. */
+  description: ReactNode;
   confirmLabel?: string;
   cancelLabel?: string;
+  confirmVariant?: "danger" | "primary";
   onConfirm: () => void;
   onCancel: () => void;
 }
@@ -20,6 +22,7 @@ export function ConfirmDialog({
   description,
   confirmLabel = "Delete",
   cancelLabel = "Cancel",
+  confirmVariant = "danger",
   onConfirm,
   onCancel,
 }: ConfirmDialogProps) {
@@ -64,7 +67,11 @@ export function ConfirmDialog({
 
           <Button
             type="button"
-            className="bg-red-600 hover:bg-red-700"
+            className={
+              confirmVariant === "danger"
+                ? "bg-red-600 hover:bg-red-700"
+                : ""
+            }
             onClick={onConfirm}
           >
             {confirmLabel}

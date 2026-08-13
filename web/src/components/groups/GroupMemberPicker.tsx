@@ -75,6 +75,7 @@ interface PanelProps {
   hint: string;
   count: number;
   highlighted: boolean;
+  className?: string;
   onDragOver: (event: React.DragEvent) => void;
   onDragLeave: () => void;
   onDrop: (event: React.DragEvent) => void;
@@ -86,6 +87,7 @@ function Panel({
   hint,
   count,
   highlighted,
+  className,
   onDragOver,
   onDragLeave,
   onDrop,
@@ -101,6 +103,7 @@ function Panel({
         highlighted
           ? "border-[#012f11] ring-2 ring-[#012f11]/15"
           : "border-stone-200",
+        className,
       )}
     >
       <div className="mb-3 flex items-center justify-between gap-3">
@@ -152,33 +155,7 @@ export function GroupMemberPicker({
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-2">
-      <Panel
-        title="Available members"
-        hint="Check or drag to add"
-        count={available.length}
-        highlighted={dragOver === "available"}
-        onDragOver={handleDragOver}
-        onDragLeave={() => setDragOver(null)}
-        onDrop={handleDrop("available")}
-      >
-        {available.length === 0 ? (
-          <p className="py-10 text-center text-sm text-stone-500">
-            Everyone is already in this group.
-          </p>
-        ) : (
-          available.map((member) => (
-            <MemberRow
-              key={member.id}
-              member={member}
-              checked={false}
-              disabled={busy}
-              onToggle={() => onAdd(member.id)}
-            />
-          ))
-        )}
-      </Panel>
-
+    <div className="grid gap-4 lg:grid-cols-5">
       <Panel
         title="In this group"
         hint="Uncheck or drag out to remove"
@@ -187,6 +164,7 @@ export function GroupMemberPicker({
         onDragOver={handleDragOver}
         onDragLeave={() => setDragOver(null)}
         onDrop={handleDrop("in-group")}
+        className="lg:col-span-3"
       >
         {inGroup.length === 0 ? (
           <p className="py-10 text-center text-sm text-stone-500">
@@ -200,6 +178,33 @@ export function GroupMemberPicker({
               checked
               disabled={busy}
               onToggle={() => onRemove(member.id)}
+            />
+          ))
+        )}
+      </Panel>
+
+      <Panel
+        title="Available members"
+        hint="Check or drag to add"
+        count={available.length}
+        highlighted={dragOver === "available"}
+        onDragOver={handleDragOver}
+        onDragLeave={() => setDragOver(null)}
+        onDrop={handleDrop("available")}
+        className="lg:col-span-2"
+      >
+        {available.length === 0 ? (
+          <p className="py-10 text-center text-sm text-stone-500">
+            Everyone is already in this group.
+          </p>
+        ) : (
+          available.map((member) => (
+            <MemberRow
+              key={member.id}
+              member={member}
+              checked={false}
+              disabled={busy}
+              onToggle={() => onAdd(member.id)}
             />
           ))
         )}
