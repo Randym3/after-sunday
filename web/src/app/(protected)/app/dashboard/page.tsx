@@ -1,6 +1,8 @@
 import Link from "next/link";
+
+import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
+import { UserGreeting } from "@/components/dashboard/UserGreeting";
 import { Button } from "@/components/ui/Button";
-import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default function DashboardPage() {
@@ -16,22 +18,11 @@ export default function DashboardPage() {
         }
       />
 
-      <div className="grid gap-4 md:grid-cols-3">
-        <Card>
-          <p className="text-sm text-stone-500">Sermons</p>
-          <p className="mt-3 text-4xl font-semibold text-[#102015]">0</p>
-        </Card>
-
-        <Card>
-          <p className="text-sm text-stone-500">Drafts needing review</p>
-          <p className="mt-3 text-4xl font-semibold text-[#102015]">0</p>
-        </Card>
-
-        <Card>
-          <p className="text-sm text-stone-500">Campaigns sent</p>
-          <p className="mt-3 text-4xl font-semibold text-[#102015]">0</p>
-        </Card>
+      <div className="mb-4">
+        <UserGreeting />
       </div>
+
+      <DashboardMetrics />
 
       <div className="mt-6">
         <div className="rounded-3xl bg-[#012f11] p-6 text-white shadow-sm">

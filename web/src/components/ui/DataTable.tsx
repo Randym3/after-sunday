@@ -9,7 +9,7 @@ import { Card } from "@/components/ui/Card";
 import { ConfirmDialog } from "@/components/ui/ConfirmDialog";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { FilterPills } from "@/components/ui/FilterPills";
-import { FilterSidebar, FilterToggle } from "@/components/ui/FilterMenu";
+import { FilterSidebar } from "@/components/ui/FilterMenu";
 import type { FilterColumn } from "@/components/ui/FilterMenu";
 import { RowActions } from "@/components/ui/RowActions";
 
@@ -137,7 +137,6 @@ export function DataTable<T>({
     filterColumns.forEach((col) => (init[col.key] = ""));
     return init;
   });
-  const [sidebarOpen, setSidebarOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<T | null>(null);
   const [retrySignal, setRetrySignal] = useState(0);
 
@@ -292,43 +291,44 @@ export function DataTable<T>({
   }
 
   if (sorted.length === 0) {
-    if (filteredCount > 0) {
-      return (
-        <div className="space-y-3">
-          <FilterToggle
-            open={sidebarOpen}
-            count={filteredCount}
-            onToggle={() => setSidebarOpen((prev) => !prev)}
-          />
-
-          <EmptyState
-            title="No results match your filters"
-            description="Try adjusting the filters or clear them to see all items."
-            action={
-              <Button
-                type="button"
-                onClick={() =>
-                  setFilters((prev) => {
-                    const cleared: Record<string, string> = {};
-                    Object.keys(prev).forEach((k) => (cleared[k] = ""));
-                    return cleared;
-                  })
-                }
-              >
-                Clear filters
-              </Button>
-            }
-          />
-        </div>
-      );
-    }
-
     return (
-      <EmptyState
-        title={emptyTitle}
-        description={emptyDescription}
-        action={emptyAction}
-      />
+      <div className="flex gap-4">
+        <div className="min-w-0 flex-1">
+          {filteredCount > 0 ? (
+            <EmptyState
+              title="No results match your filters"
+              description="Try adjusting the filters or clear them to see all items."
+              action={
+                <Button
+                  type="button"
+                  onClick={() =>
+                    setFilters((prev) => {
+                      const cleared: Record<string, string> = {};
+                      Object.keys(prev).forEach((k) => (cleared[k] = ""));
+                      return cleared;
+                    })
+                  }
+                >
+                  Clear filters
+                </Button>
+              }
+            />
+          ) : (
+            <EmptyState
+              title={emptyTitle}
+              description={emptyDescription}
+              action={emptyAction}
+            />
+          )}
+        </div>
+
+        <FilterSidebar
+          columns={filterColumns}
+          filters={filters}
+          onFiltersChange={setFilters}
+          entityValues={entityValues}
+        />
+      </div>
     );
   }
 
@@ -343,17 +343,11 @@ export function DataTable<T>({
           onFiltersChange={setFilters}
         />
 
-        <div className="flex items-center justify-between gap-3">
-          <FilterToggle
-            open={sidebarOpen}
-            count={filteredCount}
-            onToggle={() => setSidebarOpen((prev) => !prev)}
-          />
-
-          {renderToolbar ? (
-            <div>{renderToolbar(sorted.length)}</div>
-          ) : null}
-        </div>
+        {renderToolbar ? (
+          <div className="flex items-center justify-end">
+            {renderToolbar(sorted.length)}
+          </div>
+        ) : null}
 
         {/* Bulk-delete action bar */}
         {selectedCount > 0 && onBulkDelete ? (
@@ -465,14 +459,12 @@ export function DataTable<T>({
         </Card>
       </div>
 
-      {sidebarOpen && (
-        <FilterSidebar
-          columns={filterColumns}
-          filters={filters}
-          onFiltersChange={setFilters}
-          entityValues={entityValues}
-        />
-      )}
+      <FilterSidebar
+        columns={filterColumns}
+        filters={filters}
+        onFiltersChange={setFilters}
+        entityValues={entityValues}
+      />
 
       {onDelete ? (
         <ConfirmDialog
