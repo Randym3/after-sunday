@@ -72,7 +72,7 @@ Follow-up draft/approval persistence is not yet server-side (browser-local mock 
 
 ## Phase 5 — Real Media Upload
 
-Status: local-disk slice complete (2026-08-09). Chunked upload pipeline implemented and verified end-to-end (create → init → chunk → complete → serve → delete). Media served via `/media` StaticFiles mount; `api/storage.py` exposes a `StorageBackend` interface.
+Status: local-disk slice complete (2026-08-09). Chunked upload pipeline implemented and verified end-to-end (create → init → chunk → complete → serve → delete). Media served via `/media` StaticFiles mount; `api/storage.py` exposes a `StorageBackend` interface. The storage destination is surfaced in Settings (backend + local path, `GET /settings/storage`) and configurable via the `STORAGE_ROOT` env var (2026-08-14).
 
 Remaining: cloud object storage (S3/R2/Supabase Storage) swap-in behind the same interface, and direct-to-bucket uploads (presigned URLs) for production-scale files.
 
@@ -125,7 +125,7 @@ Status: groups complete (2026-08-12); email campaigns pending.
 
 Status: test-email slice implemented (2026-08-14); campaign delivery remains pending.
 
-- test email from a sermon draft, before or after approval, via Resend (`RESEND_API_KEY` + `EMAIL_FROM`, or configured in-app at `/app/settings` → `app_settings` table, migration 0013; env takes precedence)
+- test email from a sermon draft, before or after approval, via Resend (`RESEND_API_KEY` + `EMAIL_FROM`, or configured in-app at `/app/settings` → `app_settings` table, migration 0013; env takes precedence); test emails are branded with the organization name from Settings
 - choose a directory member or enter a manual address
 - recipient validation and clear provider/configuration errors
 - approved draft required for campaign sends
