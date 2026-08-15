@@ -6,7 +6,14 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.routers import groups, members, sermons
+from app.routers import campaigns, groups, members, sermons
+from app.models import campaign  # noqa: F401 ensures metadata sees campaign tables
+from app.models import group  # noqa: F401 ensures metadata sees group tables
+from app.models import member  # noqa: F401 ensures metadata sees member tables
+from app.models import sermon  # noqa: F401 ensures metadata sees sermon tables
+from app.models import transcription_job  # noqa: F401 ensures metadata sees job tables
+
+# Keep model imports above the router imports used by Alembic/runtime metadata.
 from app.services.transcription import build_provider, run_transcription_worker
 
 _transcription_task: asyncio.Task | None = None
@@ -45,6 +52,7 @@ app.add_middleware(
 app.include_router(sermons.router)
 app.include_router(members.router)
 app.include_router(groups.router)
+app.include_router(campaigns.router)
 
 # Serve uploaded media in dev. In production a CDN or signed-URL middleware
 # would replace this.  The directory is created lazily by the local-disk
