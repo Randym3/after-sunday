@@ -82,6 +82,19 @@ def _draft_to_html(body: str) -> str:
     )
 
 
+def render_test_email_html(body: str, organization_name: str | None) -> str:
+    org = escape(organization_name or "After Sunday")
+    return (
+        '<div style="font-family:Arial,sans-serif;color:#29283d;max-width:640px;">'
+        f'<p style="font-size:18px;font-weight:700;color:#4f46e5;">{org}</p>'
+        '<p style="color:#6b7280;font-size:12px;">Test email preview</p>'
+        f"{_draft_to_html(body)}"
+        '<p style="border-top:1px solid #e5e7eb;padding-top:16px;'
+        f'color:#6b7280;font-size:12px;">This is a test email from {org}.</p>'
+        "</div>"
+    )
+
+
 def send_test_email(
     *,
     to: str,
@@ -89,6 +102,7 @@ def send_test_email(
     body: str,
     api_key: str,
     from_email: str,
+    organization_name: str | None = None,
 ) -> None:
     """Send one test email or raise a configuration/provider error."""
     if not api_key or not from_email:
@@ -106,14 +120,6 @@ def send_test_email(
             "from": from_email,
             "to": [to],
             "subject": f"[Test] {subject}",
-            "html": (
-                '<div style="font-family:Arial,sans-serif;color:#29283d;max-width:640px;">'
-                '<p style="font-size:18px;font-weight:700;color:#4f46e5;">After Sunday</p>'
-                '<p style="color:#6b7280;font-size:12px;">Test email preview</p>'
-                f"{_draft_to_html(body)}"
-                '<p style="border-top:1px solid #e5e7eb;padding-top:16px;'
-                'color:#6b7280;font-size:12px;">This is a test email from After Sunday.</p>'
-                "</div>"
-            ),
+            "html": render_test_email_html(body, organization_name),
         }
     )

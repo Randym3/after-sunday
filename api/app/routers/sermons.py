@@ -18,6 +18,7 @@ from app.schemas.sermon import (
     TestEmailRequest,
     TranscriptUpdate,
 )
+from app.services.branding import get_organization_name
 from app.services.email import resolve_email_config, send_test_email
 from app.services.follow_up import build_follow_up_provider
 from app.services.transcription import build_provider
@@ -202,6 +203,7 @@ def send_sermon_test_email(
             body=personalized_body,
             api_key=api_key,
             from_email=email_from,
+            organization_name=get_organization_name(db),
         )
     except RuntimeError as exc:
         raise HTTPException(status_code=503, detail=str(exc)) from exc
