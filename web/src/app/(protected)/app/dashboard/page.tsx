@@ -1,5 +1,6 @@
 import Link from "next/link";
 
+import { AddMemberButton } from "@/components/dashboard/AddMemberButton";
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
 import { UserGreeting } from "@/components/dashboard/UserGreeting";
 import { Button } from "@/components/ui/Button";
@@ -12,9 +13,12 @@ export default function DashboardPage() {
         title="Continue the care that started on Sunday."
         description="Track sermon follow-ups, review AI-assisted drafts, and prepare encouragement for the people who could not attend."
         action={
-          <Link href="/app/sermons/new">
-            <Button>Create Sermon</Button>
-          </Link>
+          <div className="flex items-center gap-3">
+            <AddMemberButton />
+            <Link href="/app/sermons/new">
+              <Button>Create Sermon</Button>
+            </Link>
+          </div>
         }
       />
 

@@ -82,6 +82,7 @@ The product should feel warm, calm, trustworthy, pastoral, modern, and simple fo
 - Do not add dependencies unnecessarily.
 - Handle loading, empty, success, and error states when a feature becomes real.
 - Keep accessibility in mind.
+- All modals fade in and out; use `web/src/components/ui/Modal.tsx` (see `docs/agent/05_IMPLEMENTATION_STANDARDS.md`).
 - Do not expose Supabase secret/service keys in browser code.
 - Do not send large MP3/MP4 files through FastAPI when real uploads are implemented. Use direct-to-object-storage uploads.
 - Do not silently change architecture.

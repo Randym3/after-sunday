@@ -117,6 +117,60 @@ select.bg-white:focus {
   border-color: #012f11;
 }
 
+/* Modal fade in/out (shared Modal primitive, see docs/agent/05_IMPLEMENTATION_STANDARDS.md). */
+@keyframes modal-backdrop-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-backdrop-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+  }
+}
+
+@keyframes modal-panel-fade-in {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes modal-panel-fade-out {
+  from {
+    opacity: 1;
+  }
+  to {
+    opacity: 0;
+    visibility: hidden;
+  }
+}
+
+.modal-backdrop-fade-in {
+  animation: modal-backdrop-fade-in 180ms ease-out;
+}
+
+.modal-backdrop-fade-out {
+  animation: modal-backdrop-fade-out 180ms ease-in forwards;
+}
+
+.modal-panel-fade-in {
+  animation: modal-panel-fade-in 180ms ease-out;
+}
+
+.modal-panel-fade-out {
+  animation: modal-panel-fade-out 180ms ease-in forwards;
+}
+
 /* Disabled controls should not look clickable. */
 button:disabled,
 a[aria-disabled="true"],

@@ -46,6 +46,10 @@ Approval must remain distinct from draft existence.
 - meaningful errors
 - do not lose user work unexpectedly
 
+## Modals
+
+Every modal must fade in and out. Use the shared `web/src/components/ui/Modal.tsx` primitive (props: `open`, `onClose`, `widthClass`, `labelledBy`) and never render a raw `fixed inset-0` overlay. The primitive handles the fade, Escape-to-close, backdrop click, and `aria-modal` wiring; components that need a form or custom content wrap it (see `MemberFormModal`, `ConfirmDialog`).
+
 ## Accessibility
 
 - semantic HTML

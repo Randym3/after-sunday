@@ -17,6 +17,11 @@ interface MemberFormProps {
   member?: Member | null;
   onCancel: () => void;
   onSubmit: (values: CreateMemberInput) => Promise<void>;
+  /** Render without the Card surface, for use inside a modal panel. */
+  embedded?: boolean;
+  /** Pass preloaded groups to avoid a late picker render in quick-add modal. */
+  availableGroups?: Group[];
+  groupsLoading?: boolean;
 }
 
 const inputClass =
@@ -26,6 +31,9 @@ export function MemberForm({
   member,
   onCancel,
   onSubmit,
+  embedded = false,
+  availableGroups,
+  groupsLoading = false,
 }: MemberFormProps) {
   const [firstName, setFirstName] = useState(member?.firstName ?? "");
   const [lastName, setLastName] = useState(member?.lastName ?? "");
@@ -37,16 +45,18 @@ export function MemberForm({
   const [role, setRole] = useState<MemberRole>(member?.role ?? "member");
   const [notes, setNotes] = useState(member?.notes ?? "");
   const [submitting, setSubmitting] = useState(false);
-  const [groups, setGroups] = useState<Group[]>([]);
+  const [fetchedGroups, setFetchedGroups] = useState<Group[]>([]);
   const [selectedGroupIds, setSelectedGroupIds] = useState<string[]>(
     member?.groupIds ?? []
   );
 
   useEffect(() => {
+    if (availableGroups !== undefined) return;
+
     let cancelled = false;
     listGroups()
       .then((data) => {
-        if (!cancelled) setGroups(data);
+        if (!cancelled) setFetchedGroups(data);
       })
       .catch(() => {
         // Groups are optional; a failed fetch just hides the picker.
@@ -54,7 +64,7 @@ export function MemberForm({
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [availableGroups]);
 
   function toggleGroup(groupId: string) {
     setSelectedGroupIds((prev) =>
@@ -85,8 +95,11 @@ export function MemberForm({
     }
   }
 
+  const Shell = embedded ? "div" : Card;
+  const groups = availableGroups ?? fetchedGroups;
+
   return (
-    <Card>
+    <Shell>
       <h2 className="text-lg font-semibold text-ink">
         {member ? "Edit member" : "Add member"}
       </h2>
@@ -251,6 +264,15 @@ export function MemberForm({
               ))}
             </div>
           </div>
+        ) : groupsLoading ? (
+          <div>
+            <span className="mb-1 block text-sm font-semibold text-ink">
+              Groups <span className="text-ink-soft">(optional)</span>
+            </span>
+            <div className="rounded-xl border border-edge bg-panel-2 px-3 py-3 text-sm text-ink-soft">
+              Loading groups…
+            </div>
+          </div>
         ) : null}
 
         <div className="flex items-center gap-3">
@@ -271,6 +293,6 @@ export function MemberForm({
           </Button>
         </div>
       </form>
-    </Card>
+    </Shell>
   );
 }
