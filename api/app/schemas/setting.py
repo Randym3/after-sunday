@@ -36,3 +36,11 @@ class BrandingUpdate(BaseModel):
 
     # None = keep current, "" = clear.
     organization_name: str | None = None
+
+
+class StorageRead(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    backend: str
+    location: str
+    public_base_url: str

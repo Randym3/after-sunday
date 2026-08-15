@@ -10,6 +10,7 @@ from app.schemas.setting import (
     BrandingUpdate,
     EmailSettingsRead,
     EmailSettingsUpdate,
+    StorageRead,
 )
 from app.services.branding import (
     LOGO_MAX_BYTES,
@@ -24,6 +25,7 @@ from app.services.email import (
     mask_api_key,
     resolve_email_config,
 )
+from app.storage import get_storage
 
 router = APIRouter(prefix="/settings", tags=["settings"])
 
@@ -112,3 +114,15 @@ def remove_branding_logo(
 ):
     clear_logo(db)
     return get_branding(db)
+
+
+@router.get("/storage", response_model=StorageRead)
+def get_storage_settings(
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    storage = get_storage()
+    return StorageRead(
+        backend=storage.backend_name,
+        location=storage.location,
+        public_base_url="/media",
+    )

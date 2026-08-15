@@ -66,3 +66,19 @@ def test_logo_rejects_unsupported_type(client):
         files={"file": ("logo.txt", b"hello", "text/plain")},
     )
     assert response.status_code == 415
+
+
+def test_storage_settings(client, tmp_path, monkeypatch):
+    from app.routers import settings as settings_router
+    from app.storage import LocalDiskBackend
+
+    backend = LocalDiskBackend(root_dir=str(tmp_path))
+    monkeypatch.setattr(settings_router, "get_storage", lambda: backend)
+
+    response = client.get("/settings/storage")
+    assert response.status_code == 200
+    assert response.json() == {
+        "backend": "local_disk",
+        "location": str(tmp_path),
+        "publicBaseUrl": "/media",
+    }
