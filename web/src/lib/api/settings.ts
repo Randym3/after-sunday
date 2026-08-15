@@ -4,6 +4,7 @@ import type {
   BrandingUpdate,
   EmailSettings,
   EmailSettingsUpdate,
+  StorageSettings,
 } from "@/types/settings";
 
 export function getEmailSettings(): Promise<EmailSettings> {
@@ -45,4 +46,8 @@ export function deleteBrandingLogo(): Promise<BrandingSettings> {
   return apiFetch<BrandingSettings>("/settings/branding/logo", {
     method: "DELETE",
   });
+}
+
+export function getStorageSettings(): Promise<StorageSettings> {
+  return apiFetch<StorageSettings>("/settings/storage");
 }

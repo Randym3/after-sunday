@@ -22,3 +22,9 @@ export interface BrandingSettings {
 export interface BrandingUpdate {
   organizationName?: string;
 }
+
+export interface StorageSettings {
+  backend: string;
+  location: string;
+  publicBaseUrl: string;
+}

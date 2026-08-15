@@ -984,7 +984,7 @@ export function SermonForm({
                   file={upload.file}
                   onComplete={() => onUploadComplete?.()}
                   onCancel={() => onUploadCancel?.()}
-                  note="Keep this page open while your recording is uploaded and transcribed."
+                  note="Keep this page open while your recording uploads. Files are stored on your After Sunday server — see Settings → Storage for the location."
                 />
               ) : null}
 
