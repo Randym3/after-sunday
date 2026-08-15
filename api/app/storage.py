@@ -18,6 +18,10 @@ class StorageBackend(abc.ABC):
         """Write a chunk of data at the given byte offset."""
 
     @abc.abstractmethod
+    def save(self, storage_key: str, data: bytes) -> None:
+        """Write a complete file in one call (small files like the org logo)."""
+
+    @abc.abstractmethod
     def delete(self, storage_key: str) -> None:
         """Remove a stored file."""
 
@@ -29,9 +33,21 @@ class StorageBackend(abc.ABC):
     def public_url(self, storage_key: str) -> str:
         """Return a URL that browsers can use to fetch the file."""
 
+    @property
+    def backend_name(self) -> str:
+        """Short identifier for the backend (e.g. 'local_disk')."""
+        return "unknown"
+
+    @property
+    def location(self) -> str:
+        """Human-readable description of where files are stored."""
+        return "unknown"
+
 
 class LocalDiskBackend(StorageBackend):
     """Stores files under a local directory (dev only)."""
+
+    backend_name = "local_disk"
 
     def __init__(self, root_dir: str = "storage") -> None:
         # Resolve relative to the API directory (where alembic.ini lives).
@@ -52,6 +68,15 @@ class LocalDiskBackend(StorageBackend):
         with path.open("r+b" if path.exists() else "wb") as f:
             f.seek(offset)
             f.write(chunk)
+
+    def save(self, storage_key: str, data: bytes) -> None:
+        path = self._key_to_path(storage_key)
+        with path.open("wb") as f:
+            f.write(data)
+
+    @property
+    def location(self) -> str:
+        return str(self._root)
 
     def delete(self, storage_key: str) -> None:
         path = self._key_to_path(storage_key)
