@@ -17,40 +17,12 @@ from html import escape
 from sqlalchemy.orm import Session
 
 from app.config import get_settings
-from app.models.setting import AppSetting
-from app.services.crypto import DecryptionError, decrypt_value, encrypt_value
-
-DB_RESEND_KEY = "resend_api_key"
-DB_EMAIL_FROM = "email_from"
-
-# Keys whose values are secrets — encrypted at rest via app.services.crypto.
-SECRET_SETTING_KEYS = {DB_RESEND_KEY}
-
-
-def _get_setting(db: Session, key: str) -> str | None:
-    setting = db.get(AppSetting, key)
-    if setting is None:
-        return None
-    if key in SECRET_SETTING_KEYS:
-        try:
-            return decrypt_value(setting.value)
-        except DecryptionError as exc:
-            print(f"[settings] {exc} — treating '{key}' as unset.")
-            return None
-    return setting.value
-
-
-def _set_setting(db: Session, key: str, value: str) -> None:
-    setting = db.get(AppSetting, key)
-    if not value:
-        if setting is not None:
-            db.delete(setting)
-        return
-    stored = encrypt_value(value) if key in SECRET_SETTING_KEYS else value
-    if setting is None:
-        db.add(AppSetting(key=key, value=stored))
-    else:
-        setting.value = stored
+from app.services.settings_store import (
+    DB_EMAIL_FROM,
+    DB_RESEND_KEY,
+    get_setting,
+    set_setting,
+)
 
 
 def resolve_email_config(
@@ -68,8 +40,8 @@ def resolve_email_config(
             settings.email_from or None,
             "env",
         )
-    db_key = _get_setting(db, DB_RESEND_KEY)
-    db_from = _get_setting(db, DB_EMAIL_FROM)
+    db_key = get_setting(db, DB_RESEND_KEY)
+    db_from = get_setting(db, DB_EMAIL_FROM)
     if db_key or db_from:
         return db_key, db_from, "db"
     return None, None, "unset"
@@ -91,12 +63,12 @@ def apply_email_settings(
 ) -> None:
     """Persist email settings from the Settings UI."""
     if clear_resend_key:
-        _set_setting(db, DB_RESEND_KEY, "")
+        set_setting(db, DB_RESEND_KEY, "")
     elif resend_api_key:
-        _set_setting(db, DB_RESEND_KEY, resend_api_key.strip())
+        set_setting(db, DB_RESEND_KEY, resend_api_key.strip())
 
     if email_from is not None:
-        _set_setting(db, DB_EMAIL_FROM, email_from.strip())
+        set_setting(db, DB_EMAIL_FROM, email_from.strip())
 
     db.commit()
 
