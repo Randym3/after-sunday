@@ -15,26 +15,17 @@ import type { DataTableColumn } from "@/components/ui/DataTable";
 import type { FilterColumn } from "@/components/ui/FilterMenu";
 import { useToast } from "@/components/ui/Toast";
 
-const DAY_LABELS = ["Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday"];
 
 function formatSchedule(campaign: Campaign): string {
-  if (campaign.weeklyDay != null && campaign.weeklyTime) {
-    const time = campaign.weeklyTime.slice(0, 5);
-    return `Every ${DAY_LABELS[campaign.weeklyDay]} at ${time}`;
-  }
-  if (campaign.sendAt) {
-    const date = new Date(campaign.sendAt);
-    if (!Number.isNaN(date.getTime())) {
-      return date.toLocaleString("en-US", {
-        month: "short",
-        day: "numeric",
-        year: "numeric",
-        hour: "numeric",
-        minute: "2-digit",
-      });
-    }
-  }
-  return "—";
+  const date = new Date(campaign.sendAt);
+  if (Number.isNaN(date.getTime())) return "—";
+  return date.toLocaleString("en-US", {
+    weekday: "short",
+    month: "short",
+    day: "numeric",
+    hour: "numeric",
+    minute: "2-digit",
+  });
 }
 
 const COLUMNS: DataTableColumn<Campaign>[] = [

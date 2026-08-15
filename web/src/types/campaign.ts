@@ -9,9 +9,7 @@ export interface Campaign {
   groupId?: string | null;
   recipientCount: number;
   status: string;
-  sendAt?: string | null;
-  weeklyDay?: number | null;
-  weeklyTime?: string | null;
+  sendAt: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -23,9 +21,7 @@ export interface CreateCampaignInput {
   sermonId: string;
   groupId?: string;
   memberIds?: string[];
-  sendAt?: string;
-  weeklyDay?: number;
-  weeklyTime?: string;
+  sendAt: string;
 }
 
 export type CampaignUpdate = Partial<
