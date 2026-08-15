@@ -1,40 +1,25 @@
 import uuid
-from datetime import datetime, time
+from datetime import datetime, timezone
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, model_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.aliases import to_camel
 
 
-def _validate_schedule(
-    send_at: datetime | None,
-    weekly_day: int | None,
-    weekly_time: time | None,
-) -> None:
-    has_specific = send_at is not None
-    has_weekly = weekly_day is not None or weekly_time is not None
-
-    if not has_specific and not has_weekly:
+def _validate_send_at(send_at: datetime | None) -> None:
+    if send_at is None:
         raise ValueError("Choose when the campaign should go out.")
-
-    if has_specific and has_weekly:
-        raise ValueError(
-            "Choose either a specific date/time or a weekly schedule, not both."
-        )
-
-    if weekly_day is not None and weekly_time is None:
-        raise ValueError("A weekly schedule needs a time.")
-
-    if weekly_time is not None and weekly_day is None:
-        raise ValueError("A weekly schedule needs a day.")
-
-    if weekly_day is not None and not (0 <= weekly_day <= 6):
-        raise ValueError("Weekly day must be between 0 (Sunday) and 6 (Saturday).")
+    if send_at.tzinfo is None:
+        send_at = send_at.replace(tzinfo=timezone.utc)
+    if send_at <= datetime.now(timezone.utc):
+        raise ValueError("The send time must be in the future.")
 
 
 class CampaignCreate(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+    model_config = ConfigDict(
+        alias_generator=to_camel, populate_by_name=True, extra="forbid"
+    )
 
     name: str = Field(min_length=1, max_length=200)
     subject: str | None = Field(default=None, max_length=300)
@@ -42,9 +27,13 @@ class CampaignCreate(BaseModel):
     sermon_id: uuid.UUID
     group_id: uuid.UUID | None = None
     member_ids: list[uuid.UUID] = []
-    send_at: datetime | None = None
-    weekly_day: int | None = None
-    weekly_time: time | None = None
+    send_at: datetime
+
+    @field_validator("send_at", mode="after")
+    @classmethod
+    def send_at_must_be_future(cls, value: datetime) -> datetime:
+        _validate_send_at(value)
+        return value
 
     @model_validator(mode="after")
     def validate_recipients(self):
@@ -52,26 +41,22 @@ class CampaignCreate(BaseModel):
             raise ValueError("Choose a group or at least one explicit member.")
         return self
 
-    @model_validator(mode="after")
-    def validate_schedule(self):
-        _validate_schedule(self.send_at, self.weekly_day, self.weekly_time)
-        return self
-
 
 class CampaignUpdate(BaseModel):
-    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+    model_config = ConfigDict(
+        alias_generator=to_camel, populate_by_name=True, extra="forbid"
+    )
 
     name: str | None = Field(default=None, min_length=1, max_length=200)
     subject: str | None = Field(default=None, max_length=300)
     body: str | None = None
     send_at: datetime | None = None
-    weekly_day: int | None = None
-    weekly_time: time | None = None
 
-    @model_validator(mode="after")
-    def validate_schedule(self):
-        _validate_schedule(self.send_at, self.weekly_day, self.weekly_time)
-        return self
+    @field_validator("send_at", mode="after")
+    @classmethod
+    def send_at_must_be_future(cls, value: datetime) -> datetime:
+        _validate_send_at(value)
+        return value
 
 
 class BulkDeleteRequest(BaseModel):
@@ -92,7 +77,5 @@ class CampaignRead(BaseModel):
     recipient_count: int
     status: str
     send_at: datetime | None
-    weekly_day: int | None
-    weekly_time: time | None
     created_at: datetime
     updated_at: datetime
