@@ -12,3 +12,13 @@ export interface EmailSettingsUpdate {
   emailFrom?: string;
   clearResendKey?: boolean;
 }
+
+export interface BrandingSettings {
+  organizationName: string | null;
+  logoUrl: string | null;
+  logoContentType: string | null;
+}
+
+export interface BrandingUpdate {
+  organizationName?: string;
+}
