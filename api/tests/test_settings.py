@@ -1,5 +1,25 @@
-from app.schemas.setting import EmailSettingsUpdate
+from app.schemas.setting import (
+    BrandingRead,
+    BrandingUpdate,
+    EmailSettingsUpdate,
+)
 from app.services.email import mask_api_key
+
+
+def test_branding_update_accepts_camel_case():
+    payload = BrandingUpdate(organizationName="Grace Church")
+    assert payload.organization_name == "Grace Church"
+
+
+def test_branding_read_accepts_camel_case():
+    payload = BrandingRead(
+        organizationName="Grace Church",
+        logoUrl="/media/organization_logo",
+        logoContentType="image/png",
+    )
+    assert payload.organization_name == "Grace Church"
+    assert payload.logo_url == "/media/organization_logo"
+    assert payload.logo_content_type == "image/png"
 
 
 def test_mask_api_key_masks_middle():

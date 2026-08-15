@@ -21,3 +21,18 @@ class EmailSettingsUpdate(BaseModel):
     # Always sent by the form as the full desired value (empty clears it).
     email_from: str | None = Field(default=None, max_length=320)
     clear_resend_key: bool = False
+
+
+class BrandingRead(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    organization_name: str | None
+    logo_url: str | None
+    logo_content_type: str | None
+
+
+class BrandingUpdate(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    # None = keep current, "" = clear.
+    organization_name: str | None = None
