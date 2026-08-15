@@ -1,5 +1,6 @@
 import { redirect } from "next/navigation";
 import { AppShell } from "@/components/layout/AppShell";
+import { ToastProvider } from "@/components/ui/Toast";
 import { createClient } from "@/lib/supabase/server";
 
 export default async function ProtectedAppLayout({
@@ -15,5 +16,5 @@ export default async function ProtectedAppLayout({
     redirect("/login");
   }
 
-  return <AppShell>{children}</AppShell>;
+  return <ToastProvider><AppShell>{children}</AppShell></ToastProvider>;
 }
