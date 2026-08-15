@@ -74,8 +74,7 @@ export function EmailSettingsForm() {
   const configured = settings?.resendConfigured ?? false;
 
   return (
-    <div className="max-w-2xl space-y-6">
-      <Card>
+    <Card>
         <div>
           <h2 className="text-lg font-semibold text-ink">
             Email delivery
@@ -193,7 +192,6 @@ export function EmailSettingsForm() {
             </form>
           </>
         )}
-      </Card>
-    </div>
+    </Card>
   );
 }

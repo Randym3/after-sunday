@@ -1,4 +1,5 @@
 import { EmailSettingsForm } from "@/components/settings/EmailSettingsForm";
+import { OrganizationSettingsForm } from "@/components/settings/OrganizationSettingsForm";
 import { PageHeader } from "@/components/ui/PageHeader";
 
 export default function SettingsPage() {
@@ -6,9 +7,12 @@ export default function SettingsPage() {
     <>
       <PageHeader
         title="Settings"
-        description="Configure integrations like email delivery."
+        description="Configure your church’s branding, email delivery, and storage."
       />
-      <EmailSettingsForm />
+      <div className="max-w-2xl space-y-6">
+        <OrganizationSettingsForm />
+        <EmailSettingsForm />
+      </div>
     </>
   );
 }
