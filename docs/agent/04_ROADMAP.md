@@ -119,7 +119,7 @@ Status: groups complete (2026-08-12); email campaigns pending.
 - groups + group_members tables (migration 0007)
 - /groups CRUD + membership endpoints; MemberRead carries groupIds
 - groups list/create/detail pages; member form group multi-select
-- campaign creation/listing + recipient resolution (migration 0008), sermon-linked email drafts, schedule (one-time or weekly; migration 0010), and edit/delete/bulk-delete implemented; email sending remains pending
+- campaign creation/listing + recipient resolution (migration 0008), sermon-linked email drafts, one-shot scheduling (migration 0011), and edit/delete/bulk-delete implemented; email sending remains pending
 
 ## Phase 10 — Email Sending
 
