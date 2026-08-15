@@ -32,6 +32,9 @@ class Settings(BaseSettings):
     #   python -c "import secrets; print(secrets.token_urlsafe(48))"
     # When empty, sensitive settings are stored in plaintext (dev only).
     secret_key: str = ""
+    # Where the local-disk storage backend keeps uploaded files, relative to
+    # the api/ directory. Production swaps in S3/R2 behind the same backend.
+    storage_root: str = "storage"
 
 
 @lru_cache

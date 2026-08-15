@@ -6,6 +6,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from app.config import get_settings
 from app.routers import campaigns, groups, members, sermons, settings
 from app.models import campaign  # noqa: F401 ensures metadata sees campaign tables
 from app.models import group  # noqa: F401 ensures metadata sees group tables
@@ -59,7 +60,9 @@ app.include_router(settings.router)
 # Serve uploaded media in dev. In production a CDN or signed-URL middleware
 # would replace this.  The directory is created lazily by the local-disk
 # storage backend.
-_storage_root = Path(__file__).resolve().parent.parent / "storage"
+_storage_root = (
+    Path(__file__).resolve().parent.parent / get_settings().storage_root
+)
 _storage_root.mkdir(parents=True, exist_ok=True)
 app.mount("/media", StaticFiles(directory=str(_storage_root)), name="media")
 

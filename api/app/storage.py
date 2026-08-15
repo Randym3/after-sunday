@@ -99,5 +99,5 @@ _storage: StorageBackend | None = None
 def get_storage() -> StorageBackend:
     global _storage
     if _storage is None:
-        _storage = LocalDiskBackend()
+        _storage = LocalDiskBackend(root_dir=get_settings().storage_root)
     return _storage
