@@ -26,7 +26,7 @@ def _to_read(db: Session, campaign: Campaign) -> CampaignRead:
         sermon_title=db.scalar(select(Sermon.title).where(Sermon.id == campaign.sermon_id)) if campaign.sermon_id else None,
         recipient_source=campaign.recipient_source, group_id=campaign.group_id,
         recipient_count=count, status=campaign.status,
-        send_at=campaign.send_at, weekly_day=campaign.weekly_day, weekly_time=campaign.weekly_time,
+        send_at=campaign.send_at,
         created_at=campaign.created_at, updated_at=campaign.updated_at,
     )
 
@@ -58,7 +58,7 @@ def create_campaign(payload: CampaignCreate, db: Session = Depends(get_db), _use
         subject=payload.subject.strip() if payload.subject else sermon.follow_up_subject,
         body=payload.body if payload.body is not None else sermon.follow_up_body,
         recipient_source=recipient_source, group_id=payload.group_id, sermon_id=sermon.id,
-        send_at=payload.send_at, weekly_day=payload.weekly_day, weekly_time=payload.weekly_time,
+        send_at=payload.send_at,
     )
     db.add(campaign)
     db.flush()
