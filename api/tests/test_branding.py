@@ -35,6 +35,20 @@ def test_save_logo_stores_file_and_keys(db_session, tmp_storage):
     assert info["logo_content_type"] == "image/png"
 
 
+def test_logo_data_uri_is_available_for_raster_email_branding(
+    db_session, tmp_storage
+):
+    branding.save_logo(db_session, b"fake", "image/png")
+    assert branding.get_logo_data_uri(db_session) == (
+        "data:image/png;base64,ZmFrZQ=="
+    )
+
+
+def test_svg_logo_is_not_embedded_in_email(db_session, tmp_storage):
+    branding.save_logo(db_session, b"<svg />", "image/svg+xml")
+    assert branding.get_logo_data_uri(db_session) is None
+
+
 def test_clear_logo_removes_file_and_keys(db_session, tmp_storage):
     branding.save_logo(db_session, b"\x89PNG fake", "image/png")
     branding.clear_logo(db_session)

@@ -125,7 +125,7 @@ Status: groups complete (2026-08-12); email campaigns pending.
 
 Status: test-email slice implemented (2026-08-14); campaign delivery remains pending.
 
-- test email from a sermon draft, before or after approval, via Resend (`RESEND_API_KEY` + `EMAIL_FROM`, or configured in-app at `/app/settings` → `app_settings` table, migration 0013; env takes precedence); test emails are branded with the organization name from Settings
+- test email from a sermon draft, before or after approval, via Resend (`RESEND_API_KEY` + `EMAIL_FROM`, or configured in-app at `/app/settings` → `app_settings` table, migration 0013; env takes precedence); test emails use a server-owned, section-aware HTML template (paragraphs, takeaways, reflection questions), are branded with the organization name, and inline raster logo when available
 - choose a directory member or enter a manual address
 - recipient validation and clear provider/configuration errors
 - approved draft required for campaign sends

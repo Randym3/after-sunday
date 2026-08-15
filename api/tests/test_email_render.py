@@ -10,3 +10,40 @@ def test_html_uses_org_name_escaped():
 def test_html_defaults_to_after_sunday():
     html = render_test_email_html("Hello body", None)
     assert "After Sunday" in html
+
+
+def test_html_renders_subject_and_fixed_sections():
+    html = render_test_email_html(
+        "Dear member,\n\nA summary.\n\n"
+        "Three takeaways:\n\n"
+        "1. First takeaway.\n2. Second takeaway.\n3. Third takeaway.\n\n"
+        "Reflection questions:\n\n"
+        "1. First question?\n2. Second question?\n3. Third question?",
+        "Grace Church",
+        "A thought from Sunday",
+    )
+    assert "A thought from Sunday" in html
+    assert "<h2" in html
+    assert html.count("<ol") == 2
+    assert "<li" in html
+    assert "<p" in html
+
+
+def test_html_escapes_ai_text_and_subject():
+    html = render_test_email_html(
+        "<script>alert('x')</script>",
+        "Grace Church",
+        "<unsafe subject>",
+    )
+    assert "<script>" not in html
+    assert "&lt;script&gt;" in html
+    assert "&lt;unsafe subject&gt;" in html
+
+
+def test_html_embeds_logo_data_uri():
+    html = render_test_email_html(
+        "Hello body",
+        "Grace Church",
+        logo_data_uri="data:image/png;base64,ZmFrZQ==",
+    )
+    assert 'src="data:image/png;base64,ZmFrZQ=="' in html

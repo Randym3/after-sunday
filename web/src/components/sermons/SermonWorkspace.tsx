@@ -11,6 +11,7 @@ import {
   updateSermon,
 } from "@/lib/api/sermons";
 import { listMembers } from "@/lib/api/members";
+import { getBrandingSettings } from "@/lib/api/settings";
 import type { SermonUpdate } from "@/lib/api/sermons";
 
 import { EmailPreview } from "@/components/sermons/EmailPreview";
@@ -224,6 +225,7 @@ export function SermonWorkspace({
   const [testEmailSending, setTestEmailSending] = useState(false);
   const [members, setMembers] = useState<Member[]>([]);
   const [membersLoading, setMembersLoading] = useState(true);
+  const [organizationName, setOrganizationName] = useState("After Sunday");
   const { toast } = useToast();
 
   // Real sermon ids are persisted via the API; "demo" is the mock path
@@ -237,6 +239,23 @@ export function SermonWorkspace({
     "loading" | "ready" | "error"
   >(isPersistedSermon ? "loading" : "ready");
   const [persistedLoadError, setPersistedLoadError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    getBrandingSettings()
+      .then((branding) => {
+        if (!cancelled) {
+          setOrganizationName(branding.organizationName || "After Sunday");
+        }
+      })
+      .catch(() => {
+        // Branding is optional — keep the default name.
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     let cancelled = false;
@@ -994,6 +1013,7 @@ export function SermonWorkspace({
               subject={sermon.followUpSubject ?? ""}
               body={sermon.followUpBody ?? ""}
               status={sermon.aiDraftStatus}
+              organizationName={organizationName}
             />
           </div>
         </div>

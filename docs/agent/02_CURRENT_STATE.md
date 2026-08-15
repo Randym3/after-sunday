@@ -166,7 +166,7 @@ Generate Follow-Up Draft
 -> Send test email to a member or manual address
 ```
 
-Persisted drafts are stored on the sermon row. Each newly generated draft records its provider/model (`ai_provider` / `ai_model`) and the AI tab displays that metadata. Test emails are allowed before or after approval and use Resend when `RESEND_API_KEY` and `EMAIL_FROM` are configured. The email preview (`EmailPreview.tsx`) replaces `{{ firstName }}` with "Jordan" for the member-facing preview.
+Persisted drafts are stored on the sermon row. Each newly generated draft records its provider/model (`ai_provider` / `ai_model`) and the AI tab displays that metadata. Test emails are allowed before or after approval and use Resend when `RESEND_API_KEY` and `EMAIL_FROM` are configured. The server owns a section-aware HTML email template — AI output remains plain text, while paragraphs, `Three takeaways:` and `Reflection questions:` are rendered into stable styled blocks; the saved raster logo is embedded when available. The in-app preview mirrors that structure and replaces `{{ firstName }}` with "Jordan" for the member-facing preview.
 
 Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`.
 

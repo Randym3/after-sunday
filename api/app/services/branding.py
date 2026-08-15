@@ -7,6 +7,8 @@ the browser can fetch it via the storage public URL.
 
 from __future__ import annotations
 
+import base64
+
 from sqlalchemy.orm import Session
 
 from app.services.settings_store import get_setting, set_setting
@@ -55,6 +57,32 @@ def save_logo(db: Session, data: bytes, content_type: str) -> None:
     set_setting(db, DB_LOGO_KEY, LOGO_STORAGE_KEY)
     set_setting(db, DB_LOGO_CONTENT_TYPE, content_type.lower())
     db.commit()
+
+
+def get_logo_data_uri(db: Session) -> str | None:
+    """Return the saved logo as an inline data URI for email clients.
+
+    The local `/media` URL is not reachable from a recipient's inbox, so the
+    small branding asset is embedded directly in the email when available.
+    """
+    logo_key = get_setting(db, DB_LOGO_KEY)
+    content_type = get_setting(db, DB_LOGO_CONTENT_TYPE)
+    if not logo_key or not content_type:
+        return None
+
+    stored = get_storage().retrieve(logo_key)
+    if stored is None:
+        return None
+    data = stored.read_bytes() if hasattr(stored, "read_bytes") else stored
+    if not isinstance(data, bytes) or not data:
+        return None
+    # Do not embed SVG markup in email HTML. Raster logos are safe to inline;
+    # SVG stays available in the app via /media but is omitted from email.
+    if content_type == "image/svg+xml":
+        return None
+
+    encoded = base64.b64encode(data).decode("ascii")
+    return f"data:{content_type};base64,{encoded}"
 
 
 def clear_logo(db: Session) -> None:
