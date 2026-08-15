@@ -1,5 +1,5 @@
 import uuid
-from datetime import datetime, time
+from datetime import datetime
 
 from sqlalchemy import DateTime, ForeignKey, String, Text, Uuid, func
 from sqlalchemy.orm import Mapped, mapped_column
@@ -23,8 +23,6 @@ class Campaign(Base):
         Uuid, ForeignKey("sermons.id", ondelete="SET NULL"), nullable=True, index=True
     )
     send_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True, index=True)
-    weekly_day: Mapped[int | None] = mapped_column(nullable=True)
-    weekly_time: Mapped[time | None] = mapped_column(nullable=True)
     status: Mapped[str] = mapped_column(String(20), nullable=False, default="draft", server_default="draft")
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False, server_default=func.now(), onupdate=func.now())
