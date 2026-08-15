@@ -153,21 +153,22 @@ Both sermons and members list pages use the shared `web/src/components/ui/DataTa
 
 ## Follow-Up Prototype
 
-The current prototype includes:
+The current workspace includes:
 
 ```txt
 Generate Follow-Up Draft
--> mocked generation delay (~700ms)
+-> real OpenAI-compatible provider (mock fallback when no LLM_API_KEY)
 -> visual swirl/loading state
 -> editable subject/body
 -> live email preview
 -> Save Draft
 -> Approve Draft
+-> Send test email to a member or manual address
 ```
 
-The generated content is hardcoded/mock content (`buildMockFollowUp`). No AI API call occurs. The email preview (`EmailPreview.tsx`) replaces `{{ firstName }}` with "Jordan" for the member-facing preview.
+Persisted drafts are stored on the sermon row. Each newly generated draft records its provider/model (`ai_provider` / `ai_model`) and the AI tab displays that metadata. Test emails are allowed before or after approval and use Resend when `RESEND_API_KEY` and `EMAIL_FROM` are configured. The email preview (`EmailPreview.tsx`) replaces `{{ firstName }}` with "Jordan" for the member-facing preview.
 
-Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`. For persisted sermons, the follow-up draft is held in component state only (mock generation; server persistence of drafts is a later step).
+Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`.
 
 ## Backend
 
@@ -181,6 +182,8 @@ GET    /sermons                 -> list all sermons (newest first)
 GET    /sermons/{id}            -> get one sermon
 PATCH  /sermons/{id}            -> partial update (incl. source_type)
 PATCH  /sermons/{id}/transcript -> save transcript edits
+POST   /sermons/{id}/follow-up/generate -> generate and persist a follow-up draft
+POST   /sermons/{id}/test-email -> send a draft test email to one recipient
 DELETE /sermons/{id}            -> delete sermon (+ removes media from storage)
 POST   /sermons/{id}/upload/init     -> storage key + chunk size (idempotent per file)
 POST   /sermons/{id}/upload/chunk    -> write one chunk at byte offset
@@ -204,13 +207,13 @@ DELETE /groups/{id}/members    -> remove members
 ```
 
 - **Postgres**: local Docker container (`api/docker-compose.yml`, `postgres:16-alpine`) mapped to host port **5433** because a native Postgres 17 (EDB, launchd) already occupies 5432 on this machine. Named volume `after_sunday_pgdata`.
-- **Migrations**: Alembic (`api/alembic/versions/`): `0001_create_sermons`, `0002_create_members`, `0003_add_member_role`, `0004_add_media_storage_fields` (adds `media_storage_key`, `media_size_bytes`, `media_content_type` to sermons), `0005_create_transcription_jobs`, `0006_add_sermon_transcript_error`, `0007_create_groups` (`groups` + `group_members` composite-PK join table, cascade both ways).
+- **Migrations**: Alembic (`api/alembic/versions/`): sermon/member/media/transcription/group migrations, campaign migrations `0008`–`0011`, and `0012_add_sermon_ai_metadata` (records the follow-up provider/model).
 - **Members** now carry `groupIds` (`MemberRead.group_ids` → camelCase `groupIds`), synced on create/update via `_sync_member_groups`; groups carry `memberCount`.
 - **Media storage**: `api/app/storage.py` defines a `StorageBackend` interface with a `LocalDiskBackend` writing to `api/storage/` (gitignored). Chunk requests are content-type-relaxed (dragged-in files often report `application/octet-stream`); init is idempotent so retries reuse the storage key. Production swaps in S3/R2/Supabase Storage behind the same interface.
 - **Auth**: every request requires `Authorization: Bearer <supabase access token>`; FastAPI resolves the user via Supabase's `GET /auth/v1/user` (no new dependency). **No ownership scoping** — any authenticated user can read/edit/delete any sermon or member (a deliberate dev decision after the ownership-wall removal; revisit with multi-tenancy).
 - **Models/schemas**: `api/app/models/{sermon,member}.py` (SQLAlchemy), `api/app/schemas/{sermon,member}.py` (Pydantic with camelCase aliases via `api/app/schemas/aliases.py` so the API speaks the frontend `Sermon`/`Member` types).
 - **Frontend client**: `web/src/lib/api/client.ts` (fetch wrapper attaching the bearer token, refreshing expired sessions; skips the JSON content-type for FormData so multipart works), `web/src/lib/api/{sermons,members,uploads}.ts` (typed functions; `uploads.ts` drives the chunked upload with byte-level progress via XHR). `NEXT_PUBLIC_API_URL=http://localhost:8000` is already set.
-- **Config**: `api/.env` (gitignored) holds `DATABASE_URL`, `SUPABASE_URL`, `SUPABASE_PUBLISHABLE_KEY`; `api/.env.example` documents them.
+- **Config**: `api/.env` (gitignored) holds database/auth settings plus `LLM_*` generation settings and optional `RESEND_API_KEY` / `EMAIL_FROM` test-email delivery settings; `api/.env.example` documents them. Email delivery can also be configured in the app at `/app/settings` (stored in the `app_settings` table, migration 0013, API-key masked in responses); environment values take precedence over the in-app settings. Sensitive setting values (the Resend key) are encrypted at rest with AES-256-GCM (`api/app/services/crypto.py`) using the `SECRET_KEY` env var; without `SECRET_KEY` values fall back to plaintext (dev only), and pre-encryption plaintext rows still read fine.
 
 `api/requirements.txt` pre-installs alembic, SQLAlchemy, psycopg, openai, and resend. `api/app.save` is a stray draft file.
 
@@ -228,9 +231,8 @@ DELETE /groups/{id}/members    -> remove members
 - transcription provider (upload completes with `transcript_status: queued`; nothing transcribes yet)
 - asynchronous jobs
 - YouTube OAuth/channel integration / caption import
-- real AI generation (follow-up draft is generated in-browser and, for persisted sermons, is not yet saved server-side)
-- follow-up/email server persistence
-- email sending
+- production email delivery for campaigns (test-email delivery is real when Resend is configured)
+- campaign approval/send orchestration and delivery tracking
 - groups (deferred; members are built, groups are not needed for MVP)
 - campaign / sermon follow-up persistence and sending
 - analytics

@@ -95,7 +95,7 @@ Remaining: store the raw `utterances` JSON on the job row so a future "click a p
 
 Status: complete (2026-08-10). Real follow-up generation is wired end-to-end:
 
-- `api/app/services/follow_up.py` — `FollowUpProvider` abstraction with a mock and an OpenAI-compatible provider (Groq by default, configurable base URL so OpenRouter / GitHub Models / NVIDIA NIM / local servers are a config swap — no new dependencies; `openai` was already in requirements). Uses `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` from `api/.env`; falls back to mock when no key (dev only).
+- `api/app/services/follow_up.py` — `FollowUpProvider` abstraction with a mock and an OpenAI-compatible provider (Groq by default, configurable base URL so OpenRouter / GitHub Models / NVIDIA NIM / local servers are a config swap — no new dependencies; `openai` was already in requirements). Uses `LLM_BASE_URL` / `LLM_API_KEY` / `LLM_MODEL` from `api/.env`; falls back to mock when no key (dev only). Generated drafts now record `ai_provider` and `ai_model` (migration 0012) so staff can see which model produced the content.
 - `POST /sermons/{id}/follow-up/generate` — validates a `ready` transcript (409 otherwise), calls the provider with title/preacher/scripture/transcript, and persists `follow_up_subject` / `follow_up_body` with `ai_draft_status=draft_ready` and `email_status=draft` on the sermon row (survives reloads).
 - Workspace: Generate / Save Draft / Approve are real API calls (`PATCH` persists drafts and approval); the browser-local mock only remains for the legacy `demo` path.
 
@@ -123,13 +123,14 @@ Status: groups complete (2026-08-12); email campaigns pending.
 
 ## Phase 10 — Email Sending
 
-Requirements:
+Status: test-email slice implemented (2026-08-14); campaign delivery remains pending.
 
-- approved draft required
-- test email
-- recipient validation
-- send status
-- error handling
+- test email from a sermon draft, before or after approval, via Resend (`RESEND_API_KEY` + `EMAIL_FROM`, or configured in-app at `/app/settings` → `app_settings` table, migration 0013; env takes precedence)
+- choose a directory member or enter a manual address
+- recipient validation and clear provider/configuration errors
+- approved draft required for campaign sends
+- recipient validation for campaign sends
+- send status and error handling for campaign delivery
 
 ## Phase 11 — SaaS Expansion
 

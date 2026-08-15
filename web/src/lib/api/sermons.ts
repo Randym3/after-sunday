@@ -75,6 +75,24 @@ export function generateFollowUp(
   });
 }
 
+export interface TestEmailInput {
+  email?: string;
+  memberId?: string;
+}
+
+export function sendTestEmail(
+  sermonId: string,
+  input: TestEmailInput,
+): Promise<{ message: string; email: string }> {
+  return apiFetch<{ message: string; email: string }>(
+    `/sermons/${sermonId}/test-email`,
+    {
+      method: "POST",
+      body: JSON.stringify(input),
+    },
+  );
+}
+
 export function deleteSermon(sermonId: string): Promise<Sermon> {
   return apiFetch<Sermon>(`/sermons/${sermonId}`, {
     method: "DELETE",

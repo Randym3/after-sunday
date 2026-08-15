@@ -35,6 +35,8 @@ export interface Sermon {
   followUpBody?: string | null;
 
   aiDraftStatus: AiDraftStatus;
+  aiProvider?: string | null;
+  aiModel?: string | null;
   emailStatus: EmailStatus;
 }
 

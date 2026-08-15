@@ -7,9 +7,18 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user_uuid
 from app.db import get_db
+from app.models.member import Member
 from app.models.sermon import Sermon
 from app.models.transcription_job import TranscriptionJob
-from app.schemas.sermon import BulkDeleteRequest, SermonCreate, SermonRead, SermonUpdate, TranscriptUpdate
+from app.schemas.sermon import (
+    BulkDeleteRequest,
+    SermonCreate,
+    SermonRead,
+    SermonUpdate,
+    TestEmailRequest,
+    TranscriptUpdate,
+)
+from app.services.email import resolve_email_config, send_test_email
 from app.services.follow_up import build_follow_up_provider
 from app.services.transcription import build_provider
 from app.storage import get_storage
@@ -130,10 +139,79 @@ async def generate_follow_up(
     sermon.follow_up_subject = draft["subject"]
     sermon.follow_up_body = draft["body"]
     sermon.ai_draft_status = "draft_ready"
+    sermon.ai_provider = provider.provider_name
+    sermon.ai_model = provider.model_name
     sermon.email_status = "draft"
     db.commit()
     db.refresh(sermon)
     return sermon
+
+
+@router.post("/{sermon_id}/test-email")
+def send_sermon_test_email(
+    sermon_id: uuid.UUID,
+    payload: TestEmailRequest,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+) -> dict:
+    """Send the current sermon draft to one test recipient.
+
+    Test sends intentionally do not require approval: they let staff inspect
+    the exact draft before deciding whether to approve it for a campaign.
+    """
+    sermon = _get_sermon_or_404(db, sermon_id)
+    subject = (sermon.follow_up_subject or "").strip()
+    body = (sermon.follow_up_body or "").strip()
+
+    if not subject or not body:
+        raise HTTPException(
+            status_code=409,
+            detail="A follow-up email draft is required before sending a test email.",
+        )
+
+    recipient_email = payload.email
+    recipient_name = "member"
+
+    if payload.member_id is not None:
+        member = db.get(Member, payload.member_id)
+        if member is None:
+            raise HTTPException(status_code=404, detail="Member not found")
+        recipient_email = member.email
+        recipient_name = member.first_name or "member"
+
+    if not recipient_email:
+        raise HTTPException(status_code=422, detail="A test recipient is required.")
+
+    personalized_body = body.replace("{{ firstName }}", recipient_name)
+
+    api_key, email_from, _source = resolve_email_config(db)
+    if not api_key or not email_from:
+        raise HTTPException(
+            status_code=503,
+            detail=(
+                "Email sending is not configured. Add a Resend API key and "
+                "sender address in Settings, or set RESEND_API_KEY and "
+                "EMAIL_FROM in api/.env."
+            ),
+        )
+
+    try:
+        send_test_email(
+            to=recipient_email,
+            subject=subject,
+            body=personalized_body,
+            api_key=api_key,
+            from_email=email_from,
+        )
+    except RuntimeError as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Test email could not be sent: {exc}",
+        ) from exc
+
+    return {"message": "Test email sent.", "email": recipient_email}
 
 
 @router.patch("/{sermon_id}/transcript", response_model=SermonRead)

@@ -2,7 +2,7 @@ import uuid
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 from app.schemas.aliases import to_camel
 
@@ -63,6 +63,24 @@ class BulkDeleteRequest(BaseModel):
     ids: list[uuid.UUID]
 
 
+class TestEmailRequest(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    email: str | None = Field(default=None, max_length=320)
+    member_id: uuid.UUID | None = None
+
+    @model_validator(mode="after")
+    def validate_recipient(self):
+        if bool(self.email) == bool(self.member_id):
+            raise ValueError("Choose a member or enter an email address.")
+        if self.email:
+            value = self.email.strip()
+            if "@" not in value or value.startswith("@") or value.endswith("@"):
+                raise ValueError("Enter a valid email address.")
+            self.email = value.lower()
+        return self
+
+
 class TranscriptUpdate(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
@@ -93,6 +111,8 @@ class SermonRead(BaseModel):
     follow_up_subject: str | None
     follow_up_body: str | None
     ai_draft_status: str
+    ai_provider: str | None
+    ai_model: str | None
     email_status: str
     created_at: datetime
     updated_at: datetime

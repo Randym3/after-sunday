@@ -111,6 +111,8 @@ Never expose:
 - storage secrets
 - email provider secrets
 
+Sensitive values stored in the database (e.g. the Resend key in `app_settings`) must be encrypted at rest via `api/app/services/crypto.py` (AES-256-GCM, keyed by `SECRET_KEY`) — never stored as plaintext in production.
+
 Backend routes must verify authentication and resource ownership.
 
 ## Testing

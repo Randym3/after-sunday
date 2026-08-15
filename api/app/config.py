@@ -24,6 +24,14 @@ class Settings(BaseSettings):
     llm_base_url: str = "https://api.groq.com/openai/v1"
     llm_api_key: str = ""
     llm_model: str = "llama-3.3-70b-versatile"
+    # Resend is used for test sends in the first email-delivery slice.
+    resend_api_key: str = ""
+    email_from: str = ""
+    # Master key for encrypting sensitive in-app settings (e.g. the stored
+    # Resend key) at rest. Generate with:
+    #   python -c "import secrets; print(secrets.token_urlsafe(48))"
+    # When empty, sensitive settings are stored in plaintext (dev only).
+    secret_key: str = ""
 
 
 @lru_cache

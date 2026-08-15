@@ -6,19 +6,25 @@ import { useEffect, useRef, useState, useSyncExternalStore } from "react";
 import {
   generateFollowUp as generateFollowUpApi,
   getSermon,
+  sendTestEmail,
   transcribeSermon,
   updateSermon,
 } from "@/lib/api/sermons";
+import { listMembers } from "@/lib/api/members";
 import type { SermonUpdate } from "@/lib/api/sermons";
 
 import { EmailPreview } from "@/components/sermons/EmailPreview";
 import { FollowUpEditor } from "@/components/sermons/FollowUpEditor";
+import { TestEmailModal } from "@/components/sermons/TestEmailModal";
+import type { TestEmailRecipient } from "@/components/sermons/TestEmailModal";
 import { SermonForm } from "@/components/sermons/SermonForm";
 import { Badge } from "@/components/ui/Badge";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { PageHeader } from "@/components/ui/PageHeader";
+import { useToast } from "@/components/ui/Toast";
 import { cn } from "@/lib/utils/cn";
+import type { Member } from "@/types/member";
 import {
   Sermon,
   TranscriptionStatus,
@@ -55,6 +61,8 @@ const fallbackSermon: Sermon = {
   followUpSubject: null,
   followUpBody: null,
   aiDraftStatus: "not_started",
+  aiProvider: "mock",
+  aiModel: "mock",
 
   emailStatus: "not_started",
 };
@@ -212,6 +220,11 @@ export function SermonWorkspace({
   const [followUpError, setFollowUpError] = useState("");
   const [detailsMessage, setDetailsMessage] = useState("");
   const [tab, setTab] = useState<"details" | "ai">("details");
+  const [testEmailOpen, setTestEmailOpen] = useState(false);
+  const [testEmailSending, setTestEmailSending] = useState(false);
+  const [members, setMembers] = useState<Member[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const { toast } = useToast();
 
   // Real sermon ids are persisted via the API; "demo" is the mock path
   // backed by the sessionStorage store.
@@ -224,6 +237,24 @@ export function SermonWorkspace({
     "loading" | "ready" | "error"
   >(isPersistedSermon ? "loading" : "ready");
   const [persistedLoadError, setPersistedLoadError] = useState("");
+
+  useEffect(() => {
+    let cancelled = false;
+    listMembers()
+      .then((loadedMembers) => {
+        if (!cancelled) setMembers(loadedMembers);
+      })
+      .catch(() => {
+        // The modal can still accept a manually entered email address.
+      })
+      .finally(() => {
+        if (!cancelled) setMembersLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   useEffect(() => {
     if (!isPersistedSermon) {
@@ -548,6 +579,25 @@ export function SermonWorkspace({
           ? error.message
           : "Unable to approve the draft.",
       );
+    }
+  }
+
+  async function sendSermonTestEmail(recipient: TestEmailRecipient) {
+    if (!sermon.followUpSubject?.trim() || !sermon.followUpBody?.trim()) {
+      throw new Error("A follow-up email draft is required first.");
+    }
+
+    if (!isPersistedSermon) {
+      throw new Error("Save this sermon before sending a test email.");
+    }
+
+    setTestEmailSending(true);
+    try {
+      const result = await sendTestEmail(sermonId, recipient);
+      toast(`Test email sent to ${result.email}`, "success");
+      setTestEmailOpen(false);
+    } finally {
+      setTestEmailSending(false);
     }
   }
 
@@ -895,6 +945,32 @@ export function SermonWorkspace({
               AI-generated content must be approved before it can be
               sent.
             </p>
+
+            <div className="mt-5 border-t border-edge pt-5">
+              <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">
+                Generated with
+              </p>
+              <p className="mt-2 text-sm font-medium text-ink">
+                {sermon.aiModel
+                  ? `${sermon.aiProvider ?? "AI"} · ${sermon.aiModel}`
+                  : "Model not recorded for this draft"}
+              </p>
+            </div>
+
+            {sermon.followUpSubject?.trim() && sermon.followUpBody?.trim() ? (
+              <div className="mt-5">
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={() => setTestEmailOpen(true)}
+                >
+                  Send test email
+                </Button>
+                <p className="mt-2 text-xs text-ink-soft">
+                  Send this draft to one inbox before or after approval.
+                </p>
+              </div>
+            ) : null}
           </Card>
 
           {/* Follow-up editor + email preview */}
@@ -922,6 +998,17 @@ export function SermonWorkspace({
           </div>
         </div>
       </div>
+      <TestEmailModal
+        open={testEmailOpen}
+        onClose={() => {
+          if (!testEmailSending) setTestEmailOpen(false);
+        }}
+        subject={sermon.followUpSubject ?? ""}
+        members={members}
+        membersLoading={membersLoading}
+        sending={testEmailSending}
+        onSend={sendSermonTestEmail}
+      />
     </div>
   );
 }

@@ -80,8 +80,9 @@ SYSTEM_PROMPT = (
 class FollowUpProvider(abc.ABC):
     """Interface for generating a follow-up draft from a sermon transcript."""
 
-    # Short identifier recorded on the sermon when a draft is generated.
+    # Identifiers recorded on the sermon when a draft is generated.
     provider_name = "unknown"
+    model_name = "unknown"
 
     @abc.abstractmethod
     async def generate(
@@ -104,6 +105,7 @@ class MockFollowUpProvider(FollowUpProvider):
     """Returns a canned follow-up after a simulated delay (dev)."""
 
     provider_name = "mock"
+    model_name = "mock"
 
     def __init__(self, delay_seconds: float = 1.5) -> None:
         self._delay = delay_seconds
@@ -147,6 +149,7 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
         self._api_key = api_key
         self._base_url = base_url
         self._model = model
+        self.model_name = model
 
     async def generate(
         self,
