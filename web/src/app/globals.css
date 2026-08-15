@@ -117,6 +117,87 @@ select.bg-white:focus {
   border-color: #012f11;
 }
 
+/* Public marketing surface: blueprint grid, restrained type, and editorial accents. */
+.marketing-page {
+  --marketing-ink: #141a19;
+  --marketing-muted: #58615f;
+  background: #f7f8f6;
+  color: var(--marketing-ink);
+}
+
+.marketing-grid {
+  background-color: #f7f8f6;
+  background-image:
+    linear-gradient(rgb(211 222 235 / 30%) 1px, transparent 1px),
+    linear-gradient(90deg, rgb(211 222 235 / 30%) 1px, transparent 1px);
+  background-size: 34px 34px;
+}
+
+.marketing-mark {
+  display: inline-flex;
+  height: 26px;
+  width: 26px;
+  align-items: center;
+  justify-content: center;
+  background: #2161e8;
+  color: white;
+  font-size: 9px;
+  font-weight: 800;
+  letter-spacing: -0.08em;
+  line-height: 1;
+}
+
+.marketing-kicker {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #2161e8;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  text-transform: uppercase;
+}
+
+.marketing-kicker-line {
+  display: inline-block;
+  height: 1px;
+  width: 28px;
+  background: #2161e8;
+}
+
+.marketing-wire {
+  position: absolute;
+  pointer-events: none;
+  border-color: rgb(137 166 218 / 26%);
+}
+
+.marketing-wire-left {
+  left: 3%;
+  top: 24%;
+  height: 110px;
+  width: 260px;
+  border-left: 1px solid;
+  border-top: 1px solid;
+}
+
+.marketing-wire-right {
+  right: 4%;
+  top: 18%;
+  height: 140px;
+  width: 220px;
+  border-right: 1px solid;
+  border-bottom: 1px solid;
+}
+
+@media (max-width: 640px) {
+  .marketing-wire {
+    opacity: 0.5;
+    transform: scale(0.65);
+    transform-origin: top right;
+  }
+}
+
 /* Modal fade in/out (shared Modal primitive, see docs/agent/05_IMPLEMENTATION_STANDARDS.md). */
 @keyframes modal-backdrop-fade-in {
   from {

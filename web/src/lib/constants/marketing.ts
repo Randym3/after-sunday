@@ -4,9 +4,11 @@ export interface MarketingNavItem {
 }
 
 export interface LandingStep {
+  number: string;
   eyebrow: string;
   title: string;
   description: string;
+  detail: string;
 }
 
 export interface LandingMetric {
@@ -15,84 +17,74 @@ export interface LandingMetric {
 }
 
 export interface LandingFeature {
+  number: string;
   title: string;
   description: string;
 }
 
 export const marketingNavItems: MarketingNavItem[] = [
-  {
-    label: "How it works",
-    href: "#how-it-works",
-  },
-  {
-    label: "Features",
-    href: "#features",
-  },
-  {
-    label: "Example",
-    href: "#example",
-  },
-  {
-    label: "Pricing",
-    href: "#pricing",
-  },
+  { label: "Workflow", href: "#workflow" },
+  { label: "Sermons", href: "#sermons" },
+  { label: "Campaigns", href: "#campaigns" },
+  { label: "FAQ", href: "#faq" },
 ];
 
 export const landingSteps: LandingStep[] = [
   {
-    eyebrow: "Step 01",
+    number: "01",
+    eyebrow: "Capture",
     title: "Add the sermon",
     description:
-      "Paste a transcript or sermon notes after Sunday service. Start simple before adding imports and automation.",
+      "Upload the recording, paste a transcript, or bring in a YouTube sermon. Everything starts from the message your church actually heard.",
+    detail: "recording + transcript",
   },
   {
-    eyebrow: "Step 02",
+    number: "02",
+    eyebrow: "Prepare",
     title: "Review the follow-up",
     description:
-      "After Sunday creates a warm, pastoral draft with sermon takeaways and discussion questions.",
+      "After Sunday creates a focused email draft with the sermon’s summary, takeaways, and reflection questions.",
+    detail: "AI draft · needs review",
   },
   {
-    eyebrow: "Step 03",
-    title: "Send with care",
+    number: "03",
+    eyebrow: "Send",
+    title: "Reach people with care",
     description:
-      "Choose recipients, send a test, approve the message, and follow up with people who could not attend.",
+      "Test the email, approve it, then send once to a group or selected members on the schedule that fits your church.",
+    detail: "approved · ready to send",
   },
 ];
 
 export const landingMetrics: LandingMetric[] = [
-  {
-    value: "3–5",
-    label: "discussion questions generated",
-  },
-  {
-    value: "1",
-    label: "reviewable email draft",
-  },
-  {
-    value: "0",
-    label: "auto-sent messages without approval",
-  },
+  { value: "01", label: "sermon becomes the source of truth" },
+  { value: "02", label: "human review gates the message" },
+  { value: "∞", label: "ways to continue the conversation" },
 ];
 
 export const landingFeatures: LandingFeature[] = [
   {
-    title: "Sermon-centered follow-up",
+    number: "01",
+    title: "Transcript-first workflow",
     description:
-      "Create follow-up messages around the actual sermon, not generic church announcements.",
+      "Keep the sermon, transcript, generated draft, and final message together instead of scattered across tools.",
   },
   {
-    title: "Human review first",
+    number: "02",
+    title: "AI that stays in its lane",
     description:
-      "AI helps draft the message, but church leaders always review and approve before anything is sent.",
+      "Use AI for a first draft. Your team controls the wording, approval, recipients, and send time.",
   },
   {
-    title: "Built for missed Sundays",
+    number: "03",
+    title: "Email people will read",
     description:
-      "Serve homebound members, sick families, travelers, and people who could not make it to church.",
+      "Turn a Sunday message into a warm, branded follow-up with a consistent format that works in any inbox.",
   },
   {
-    title: "Simple enough for small teams",
+    number: "04",
+    title: "Campaigns without the machinery",
     description:
-      "No complex dashboard or heavy marketing automation system. Just a clear pastoral workflow.",
+      "Choose a group or specific members, see the recipient count, and schedule one thoughtful follow-up.",
   },
 ];

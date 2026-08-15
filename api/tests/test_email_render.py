@@ -23,10 +23,13 @@ def test_html_renders_subject_and_fixed_sections():
         "A thought from Sunday",
     )
     assert "A thought from Sunday" in html
-    assert "<h2" in html
+    assert "Three takeaways</p>" in html
+    assert "Reflection questions</p>" in html
     assert html.count("<ol") == 2
     assert "<li" in html
     assert "<p" in html
+    assert "background:#edf3ff" in html
+    assert "border:1px dashed #cbd5e1" in html
 
 
 def test_html_escapes_ai_text_and_subject():

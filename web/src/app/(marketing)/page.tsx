@@ -9,11 +9,11 @@ import { MetricsSection } from "@/components/marketing/MetricsSection";
 
 export default function MarketingHomePage() {
   return (
-    <main>
+    <main className="marketing-page">
       <MarketingHeader />
       <HeroSection />
-      <HowItWorksSection />
       <MetricsSection />
+      <HowItWorksSection />
       <ExampleSection />
       <FeaturesSection />
       <CtaSection />

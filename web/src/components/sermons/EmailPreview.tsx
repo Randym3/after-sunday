@@ -26,6 +26,7 @@ function renderPreviewBody(body: string): ReactNode[] {
   const blocks: ReactNode[] = [];
   let paragraph: string[] = [];
   let listItems: string[] = [];
+  let section: string | null = null;
 
   function flushParagraph() {
     if (!paragraph.length) return;
@@ -37,14 +38,48 @@ function renderPreviewBody(body: string): ReactNode[] {
     paragraph = [];
   }
 
+  function flushSectionHeading() {
+    if (!section) return;
+    blocks.push(
+      <h3 key={`heading-${blocks.length}`} className="mb-3 mt-7 text-base font-bold text-stone-900">
+        {section}
+      </h3>,
+    );
+    section = null;
+  }
+
   function flushList() {
     if (!listItems.length) return;
-    blocks.push(
-      <ol key={`list-${blocks.length}`} className="mb-6 list-decimal space-y-2 pl-6 text-[15px] leading-6 text-stone-700">
+    const list = (
+      <ol className="mt-3 list-decimal space-y-2 pl-6 text-[15px] leading-6 text-stone-700">
         {listItems.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
-      </ol>,
+      </ol>
     );
+
+    if (section === "Three takeaways") {
+      blocks.push(
+        <div key={`takeaways-${blocks.length}`} className="mb-6 mt-6 rounded-xl bg-[#edf3ff] p-5">
+          <p className="text-base font-bold text-stone-900">Three takeaways</p>
+          {list}
+        </div>,
+      );
+    } else if (section === "Reflection questions") {
+      blocks.push(
+        <div key={`questions-${blocks.length}`} className="mb-6 mt-6 rounded-xl border border-dashed border-slate-300 bg-white p-5">
+          <p className="text-base font-bold text-stone-900">Reflection questions</p>
+          {list}
+        </div>,
+      );
+    } else {
+      blocks.push(
+        <ol key={`list-${blocks.length}`} className="mb-6 list-decimal space-y-2 pl-6 text-[15px] leading-6 text-stone-700">
+          {listItems.map((item, index) => <li key={`${item}-${index}`}>{item}</li>)}
+        </ol>,
+      );
+    }
+
     listItems = [];
+    section = null;
   }
 
   for (const line of lines) {
@@ -58,11 +93,8 @@ function renderPreviewBody(body: string): ReactNode[] {
     if (heading) {
       flushParagraph();
       flushList();
-      blocks.push(
-        <h3 key={`heading-${blocks.length}`} className="mb-3 mt-7 text-base font-bold text-stone-900">
-          {heading}
-        </h3>,
-      );
+      flushSectionHeading();
+      section = heading;
       continue;
     }
 
@@ -73,12 +105,17 @@ function renderPreviewBody(body: string): ReactNode[] {
       continue;
     }
 
-    if (listItems.length) flushList();
+    if (listItems.length) {
+      flushList();
+    } else if (section) {
+      flushSectionHeading();
+    }
     paragraph.push(line);
   }
 
   flushParagraph();
   flushList();
+  flushSectionHeading();
   return blocks;
 }
 

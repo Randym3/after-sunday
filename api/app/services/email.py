@@ -95,6 +95,7 @@ def _render_body_blocks(body: str) -> str:
     blocks: list[str] = []
     paragraph: list[str] = []
     list_items: list[str] = []
+    section: str | None = None
 
     def flush_paragraph() -> None:
         if not paragraph:
@@ -106,7 +107,18 @@ def _render_body_blocks(body: str) -> str:
         )
         paragraph.clear()
 
+    def flush_section_heading() -> None:
+        nonlocal section
+        if section:
+            blocks.append(
+                '<h2 style="margin:28px 0 12px;color:#2f2a25;font-size:18px;'
+                'line-height:1.4;text-align:left;">'
+                f"{escape(section)}</h2>"
+            )
+            section = None
+
     def flush_list() -> None:
+        nonlocal section
         if not list_items:
             return
         items = "".join(
@@ -114,11 +126,30 @@ def _render_body_blocks(body: str) -> str:
             f"{escape(item)}</li>"
             for item in list_items
         )
-        blocks.append(
-            '<ol style="margin:0 0 24px;padding-left:24px;color:#332f2a;'
+        list_html = (
+            '<ol style="margin:12px 0 0;padding-left:24px;color:#332f2a;'
             f'font-size:16px;line-height:1.65;">{items}</ol>'
         )
+        if section == "Three takeaways":
+            blocks.append(
+                '<div style="margin:22px 0;padding:20px;background:#edf3ff;'
+                'border-radius:12px;">'
+                '<p style="margin:0;color:#211f1c;font-size:16px;line-height:1.4;'
+                'font-weight:700;">Three takeaways</p>'
+                f"{list_html}</div>"
+            )
+        elif section == "Reflection questions":
+            blocks.append(
+                '<div style="margin:22px 0;padding:20px;background:#ffffff;'
+                'border:1px dashed #cbd5e1;border-radius:12px;">'
+                '<p style="margin:0;color:#211f1c;font-size:16px;line-height:1.4;'
+                'font-weight:700;">Reflection questions</p>'
+                f"{list_html}</div>"
+            )
+        else:
+            blocks.append(list_html)
         list_items.clear()
+        section = None
 
     for line in lines:
         if not line:
@@ -130,11 +161,8 @@ def _render_body_blocks(body: str) -> str:
         if heading:
             flush_paragraph()
             flush_list()
-            blocks.append(
-                '<h2 style="margin:28px 0 12px;color:#2f2a25;font-size:18px;'
-                'line-height:1.4;text-align:left;">'
-                f"{escape(heading)}</h2>"
-            )
+            flush_section_heading()
+            section = heading
             continue
 
         match = _NUMBERED_ITEM.match(line)
@@ -145,10 +173,13 @@ def _render_body_blocks(body: str) -> str:
 
         if list_items:
             flush_list()
+        elif section:
+            flush_section_heading()
         paragraph.append(line)
 
     flush_paragraph()
     flush_list()
+    flush_section_heading()
     return "".join(blocks)
 
 
