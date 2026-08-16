@@ -7,7 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import get_settings
-from app.routers import campaigns, groups, members, sermons, settings
+from app.routers import campaigns, groups, members, sermons, settings, youtube
 from app.models import campaign  # noqa: F401 ensures metadata sees campaign tables
 from app.models import group  # noqa: F401 ensures metadata sees group tables
 from app.models import member  # noqa: F401 ensures metadata sees member tables
@@ -56,6 +56,7 @@ app.include_router(members.router)
 app.include_router(groups.router)
 app.include_router(campaigns.router)
 app.include_router(settings.router)
+app.include_router(youtube.router)
 
 # Serve uploaded media in dev. In production a CDN or signed-URL middleware
 # would replace this.  The directory is created lazily by the local-disk
