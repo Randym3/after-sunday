@@ -16,6 +16,7 @@ import type { SermonUpdate } from "@/lib/api/sermons";
 
 import { EmailPreview } from "@/components/sermons/EmailPreview";
 import { FollowUpEditor } from "@/components/sermons/FollowUpEditor";
+import { PromptPanel } from "@/components/sermons/PromptPanel";
 import { TestEmailModal } from "@/components/sermons/TestEmailModal";
 import type { TestEmailRecipient } from "@/components/sermons/TestEmailModal";
 import { SermonForm } from "@/components/sermons/SermonForm";
@@ -119,7 +120,7 @@ function buildMockFollowUp(sermon: Sermon) {
 
 We missed you this Sunday and wanted to share a few reminders from the message.
 
-${preacher} preached from ${scripture} and reminded us that God cares faithfully for His people, leads them through difficult seasons, and remains present with them.
+${preacher} preached from ${scripture} this Sunday, and the message stayed with us long after the service ended. Walking through the passage verse by verse, we were reminded that God’s care runs deeper than our circumstances and that His presence stays close to us even when the road ahead is hard. Again and again the text points us back to the same truth: we do not walk through any season alone. If you were not able to join us, we hope this note helps you catch up and reflect on what the Lord is doing in our church.
 
 Three takeaways:
 
@@ -966,21 +967,34 @@ export function SermonWorkspace({
             </p>
 
             <div className="mt-5 border-t border-edge pt-5">
-              <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">
-                Generated with
-              </p>
-              <p className="mt-2 text-sm font-medium text-ink">
-                {sermon.aiModel
-                  ? `${sermon.aiProvider ?? "AI"} · ${sermon.aiModel}`
-                  : "Model not recorded for this draft"}
-              </p>
+              <div
+                className={cn(
+                  "grid gap-5",
+                  isPersistedSermon && "sm:grid-cols-2",
+                )}
+              >
+                <div className="min-w-0">
+                  <p className="text-xs font-medium uppercase tracking-[0.16em] text-ink-soft">
+                    Generated with
+                  </p>
+                  <p className="mt-2 text-sm font-medium text-ink">
+                    {sermon.aiModel
+                      ? `${sermon.aiProvider ?? "AI"} · ${sermon.aiModel}`
+                      : "Not recorded for this draft"}
+                  </p>
+                </div>
+
+                {isPersistedSermon ? (
+                  <PromptPanel sermonId={sermonId} />
+                ) : null}
+              </div>
             </div>
 
             {sermon.followUpSubject?.trim() && sermon.followUpBody?.trim() ? (
               <div className="mt-5">
                 <Button
                   type="button"
-                  variant="secondary"
+                  variant="warning"
                   onClick={() => setTestEmailOpen(true)}
                 >
                   Send test email

@@ -20,7 +20,7 @@ from app.config import get_settings
 GREETING = "Dear {{ firstName }},"
 
 MOCK_FOLLOW_UP_SUBJECT = "A few reminders from Sunday’s sermon"
-MOCK_FOLLOW_UP_BODY = """{preacher} preached from {scripture} this Sunday and reminded us that God cares for His people personally, leads them through difficult seasons, and stays close to them in every valley.
+MOCK_FOLLOW_UP_BODY = """{preacher} preached from {scripture} this Sunday, and the message stayed with us long after the service ended. Working through the passage verse by verse, we were reminded that God’s care runs deeper than our circumstances and that His presence stays close to us even when the road ahead is hard. Again and again the text points back to the same truth: we do not walk through any season alone, and every chapter of our story is held by a Shepherd who knows us by name. If you were not able to join us, we hope this note helps you catch up and reflect on what the Lord is doing in our church.
 
 Three takeaways:
 
@@ -47,6 +47,12 @@ SYSTEM_PROMPT = (
     "the body directly with the summary paragraph.\n"
     "- Reference the sermon's actual content (passages, stories, main points) — "
     "do not invent scripture or fabricate quotes.\n"
+    "- When the sermon references specific verses or passages, weave them "
+    "into the opening summary and takeaways with plain citations (for "
+    "example, \"Mark 9:30–50\", \"Psalm 23\", \"1 John 1:9\"). Only cite "
+    "references that show up in the transcript or the provided scripture "
+    "reference — never guess or invent a citation. If no verses are named, "
+    "simply summarize the content without fabricating references.\n"
     "- The assigned preacher name is provided in the request context. When it is "
     "present, you MUST use that exact name in the summary (for example, "
     "\"Randy Meneses shared...\"). Never write \"the preacher\", \"the pastor\", "
@@ -60,8 +66,9 @@ SYSTEM_PROMPT = (
     "detached report-style wording. Do not describe the email itself; speak "
     "directly and warmly about the truth and encouragement from the message.\n"
     "- Structure the body exactly like this:\n"
-    "  1. A short opening paragraph (2–3 conversational sentences) summarizing "
-    "     the message and its encouragement for the reader.\n"
+    "  1. A substantial opening summary (4–6 sentences, roughly 80–120 "
+    "     words) that vividly summarizes the message, names the passages "
+    "     the preacher used, and applies its encouragement for the reader.\n"
     "  2. The heading \"Three takeaways:\" followed by exactly three numbered "
     "     takeaways drawn from the sermon.\n"
     "  3. The heading \"Reflection questions:\" followed by exactly three "
@@ -70,7 +77,8 @@ SYSTEM_PROMPT = (
     "  summary paragraph, a blank line before and after the \"Three takeaways:\" "
     "  heading and its list, and a blank line before the \"Reflection "
     "  questions:\" heading.\n"
-    "- Keep the whole body around 180–250 words. Use short paragraphs.\n"
+    "- Keep the whole body around 300–380 words, with the opening summary "
+    "  accounting for roughly a third of it. Use short paragraphs.\n"
     "- Respond only with a JSON object containing exactly two keys: \"subject\" "
     "(a friendly email subject line, under 60 characters) and \"body\" (the full "
     "email body). No markdown, no commentary outside the JSON."
@@ -134,6 +142,36 @@ class MockFollowUpProvider(FollowUpProvider):
         }
 
 
+def build_follow_up_prompt(
+    *,
+    title: str,
+    preacher: str | None,
+    scripture_reference: str | None,
+    transcript: str,
+) -> dict:
+    """Build the exact system + user messages sent to the LLM.
+
+    Single source of truth for the prompt: the provider sends exactly these
+    strings, and the API exposes them so staff can inspect what is actually
+    sent. Returns ``{"system": str, "user": str}``.
+    """
+    context = (
+        f"Sermon title: {title or '(untitled)'}\n"
+        f"Preacher: {preacher or '(not given)'}\n"
+        f"Scripture reference: {scripture_reference or '(not given)'}\n"
+        f"Assigned preacher name: {preacher or '(not provided)'}\n\n"
+        f"IMPORTANT: Use the exact assigned preacher name above in the "
+        f"summary. {'Do not use the phrase \"the preacher\".' if preacher else 'There is no assigned preacher name, so use a natural generic reference only if needed.'}"
+    )
+    return {
+        "system": SYSTEM_PROMPT,
+        "user": (
+            f"{context}\n\n"
+            f"Sermon transcript:\n\n{transcript}"
+        ),
+    }
+
+
 class OpenAICompatibleFollowUpProvider(FollowUpProvider):
     """Generates follow-ups through any OpenAI-compatible chat endpoint.
 
@@ -163,13 +201,11 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
 
         client = AsyncOpenAI(api_key=self._api_key, base_url=self._base_url)
 
-        context = (
-            f"Sermon title: {title or '(untitled)'}\n"
-            f"Preacher: {preacher or '(not given)'}\n"
-            f"Scripture reference: {scripture_reference or '(not given)'}\n"
-            f"Assigned preacher name: {preacher or '(not provided)'}\n\n"
-            f"IMPORTANT: Use the exact assigned preacher name above in the "
-            f"summary. {'Do not use the phrase \'the preacher\'.' if preacher else 'There is no assigned preacher name, so use a natural generic reference only if needed.'}"
+        prompt = build_follow_up_prompt(
+            title=title,
+            preacher=preacher,
+            scripture_reference=scripture_reference,
+            transcript=transcript,
         )
 
         print(
@@ -182,14 +218,8 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
             response_format={"type": "json_object"},
             temperature=0.7,
             messages=[
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {
-                    "role": "user",
-                    "content": (
-                        f"{context}\n\n"
-                        f"Sermon transcript:\n\n{transcript}"
-                    ),
-                },
+                {"role": "system", "content": prompt["system"]},
+                {"role": "user", "content": prompt["user"]},
             ],
         )
 

@@ -5,6 +5,9 @@ from __future__ import annotations
 import abc
 import asyncio
 import re
+import subprocess
+import tempfile
+from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -50,6 +53,58 @@ SENTENCES_PER_PARAGRAPH = 3
 # A silence gap at least this long between consecutive utterances also
 # starts a new paragraph (a genuine dramatic pause).
 PAUSE_PARAGRAPH_THRESHOLD_MS = 1500
+
+
+@contextmanager
+def _prepare_velma_upload(
+    file_path: Path,
+    upload_name: str,
+):
+    """Prepare a file in a format accepted by Velma's batch endpoint.
+
+    Velma's batch API rejects the `.m4a` extension even though M4A is a
+    common audio container. Convert it to an MP3 in a temporary directory;
+    the original recording remains untouched in storage.
+    """
+    if Path(upload_name).suffix.lower() != ".m4a":
+        yield file_path, upload_name
+        return
+
+    with tempfile.TemporaryDirectory(prefix="after-sunday-transcode-") as temp_dir:
+        converted_path = Path(temp_dir) / "recording.mp3"
+        try:
+            subprocess.run(
+                [
+                    "ffmpeg",
+                    "-y",
+                    "-i",
+                    str(file_path),
+                    "-vn",
+                    "-codec:a",
+                    "libmp3lame",
+                    "-q:a",
+                    "2",
+                    str(converted_path),
+                ],
+                check=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                text=True,
+            )
+        except FileNotFoundError as exc:
+            raise RuntimeError(
+                "M4A transcription requires ffmpeg to be installed on the API server."
+            ) from exc
+        except subprocess.CalledProcessError as exc:
+            detail = (exc.stderr or "").strip()[-500:]
+            raise RuntimeError(
+                f"Could not convert the M4A recording before transcription. {detail}"
+            ) from exc
+
+        if not converted_path.exists() or converted_path.stat().st_size == 0:
+            raise RuntimeError("M4A conversion produced an empty audio file.")
+
+        yield converted_path, converted_path.name
 
 
 class TranscriptionProvider(abc.ABC):
@@ -185,15 +240,25 @@ class VelmaTranscriptionProvider(TranscriptionProvider):
         # no extension — so send the user-facing filename when we have it.
         upload_name = original_filename or file_path.name
         print(f"[transcribe] Velma started for {upload_name}")
-        async with httpx.AsyncClient(timeout=600.0) as client:
-            with file_path.open("rb") as fh:
-                response = await client.post(
-                    self._url,
-                    headers={"X-API-Key": self._api_key},
-                    data={"speaker_diarization": "true"},
-                    files={"upload_file": (upload_name, fh)},
-                )
-        response.raise_for_status()
+        with _prepare_velma_upload(file_path, upload_name) as (
+            upload_path,
+            prepared_upload_name,
+        ):
+            async with httpx.AsyncClient(timeout=600.0) as client:
+                with upload_path.open("rb") as fh:
+                    response = await client.post(
+                        self._url,
+                        headers={"X-API-Key": self._api_key},
+                        data={"speaker_diarization": "true"},
+                        files={"upload_file": (prepared_upload_name, fh)},
+                    )
+
+        if response.is_error:
+            detail = response.text.strip() or "No error details returned."
+            raise RuntimeError(
+                f"Velma rejected the recording (HTTP {response.status_code}): "
+                f"{detail[:1000]}"
+            )
         result = response.json()
         utterances = result.get("utterances") or []
         if utterances:

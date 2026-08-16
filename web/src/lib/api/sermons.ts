@@ -75,6 +75,19 @@ export function generateFollowUp(
   });
 }
 
+export interface FollowUpPrompt {
+  systemPrompt: string;
+  userPrompt: string;
+}
+
+export function getFollowUpPrompt(
+  sermonId: string
+): Promise<FollowUpPrompt> {
+  return apiFetch<FollowUpPrompt>(
+    `/sermons/${sermonId}/follow-up/prompt`,
+  );
+}
+
 export interface TestEmailInput {
   email?: string;
   memberId?: string;

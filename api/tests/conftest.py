@@ -5,6 +5,8 @@ from sqlalchemy.pool import StaticPool
 
 from app.db import Base
 from app.models import setting  # noqa: F401 — registers app_settings in metadata
+from app.models import sermon  # noqa: F401 — registers sermons in metadata
+from app.models import transcription_job  # noqa: F401 — registers jobs in metadata
 
 
 @pytest.fixture

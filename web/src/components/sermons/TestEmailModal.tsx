@@ -186,7 +186,11 @@ export function TestEmailModal({
           <Button type="button" variant="secondary" onClick={onClose} disabled={sending}>
             Cancel
           </Button>
-          <Button type="submit" disabled={sending || (mode === "member" && membersLoading)}>
+          <Button
+            type="submit"
+            variant="warning"
+            disabled={sending || (mode === "member" && membersLoading)}
+          >
             {sending ? "Sending…" : "Send test email"}
           </Button>
         </div>

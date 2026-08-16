@@ -20,7 +20,10 @@ from app.schemas.sermon import (
 )
 from app.services.branding import get_logo_data_uri, get_organization_name
 from app.services.email import resolve_email_config, send_test_email
-from app.services.follow_up import build_follow_up_provider
+from app.services.follow_up import (
+    build_follow_up_prompt,
+    build_follow_up_provider,
+)
 from app.services.transcription import build_provider
 from app.storage import get_storage
 
@@ -146,6 +149,38 @@ async def generate_follow_up(
     db.commit()
     db.refresh(sermon)
     return sermon
+
+
+@router.get("/{sermon_id}/follow-up/prompt")
+def get_follow_up_prompt(
+    sermon_id: uuid.UUID,
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+) -> dict:
+    """Return the exact system + user messages sent to the AI for this sermon.
+
+    Lets staff inspect precisely what the model sees when generating a
+    follow-up draft (used by the "View prompt" info affordance).
+    """
+    sermon = _get_sermon_or_404(db, sermon_id)
+
+    if (
+        sermon.transcript_status != "ready"
+        or not sermon.transcript
+        or not sermon.transcript.strip()
+    ):
+        raise HTTPException(
+            status_code=409,
+            detail="A reviewed transcript is required before a prompt can be built.",
+        )
+
+    prompt = build_follow_up_prompt(
+        title=sermon.title,
+        preacher=sermon.preacher,
+        scripture_reference=sermon.scripture_reference,
+        transcript=sermon.transcript,
+    )
+    return {"systemPrompt": prompt["system"], "userPrompt": prompt["user"]}
 
 
 @router.post("/{sermon_id}/test-email")
