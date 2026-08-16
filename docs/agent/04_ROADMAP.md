@@ -105,12 +105,20 @@ Remaining in this phase (deferred): per-version draft history, and storing which
 
 ## Phase 8 — YouTube Integration
 
-After upload/transcription works:
+Status: complete (2026-08-15).
 
-- authenticated Google/YouTube connection
-- list/select authorized church videos where practical
-- import captions when permitted
-- fallback when unavailable
+- paste a YouTube URL → `POST /youtube/preview` fetches public metadata
+  (title, upload date, channel, thumbnail, description, scripture reference)
+  and the create form prefills empty fields + shows a preview card
+- auto-captions are imported through the existing `transcription_jobs`
+  worker (`provider="youtube_captions"`) — no storage or transcription cost
+- `api/scripts/import_youtube_archive.py` bulk-imports a channel
+  (`--channel URL [--limit N] [--dry-run] [--user-id UUID]`), deduping on
+  `youtube_video_id`
+- metadata/captions use yt-dlp + youtube-transcript-api (no API key); a
+  YouTube Data API v3 swap is possible behind `api/app/services/youtube.py`
+- note: import only from the church's own channel; automated caption
+  scraping is a YouTube ToS gray area
 
 ## Phase 9 — Recipients and Groups
 

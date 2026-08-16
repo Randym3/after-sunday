@@ -116,25 +116,23 @@ def fetch_video_metadata(url: str) -> VideoMetadata:
     )
 
 
-def fetch_auto_captions(
+async def fetch_auto_captions(
     video_id: str,
     preferred_languages: tuple[str, ...] = ("en", "en-US", "en-GB"),
 ) -> str:
     """Fetch the video's captions (manual preferred, then auto-generated)."""
-    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
-    languages = list(preferred_languages)
-
     try:
-        transcript = transcript_list.find_manually_created_transcript(languages)
-    except Exception:
-        try:
-            transcript = transcript_list.find_generated_transcript(languages)
-        except Exception as exc:
-            raise RuntimeError(
-                f"No English captions available for video {video_id}."
-            ) from exc
+        # ``fetch`` prefers a manually-created transcript in one of the
+        # requested languages, falling back to an auto-generated one.
+        fetched = YouTubeTranscriptApi().fetch(
+            video_id, languages=list(preferred_languages)
+        )
+    except Exception as exc:
+        raise RuntimeError(
+            f"No English captions available for video {video_id}."
+        ) from exc
 
-    lines = transcript.fetch()
+    lines = fetched.to_raw_data()
     text = " ".join(
         (line.get("text") or "").strip()
         for line in lines

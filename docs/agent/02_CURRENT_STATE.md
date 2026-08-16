@@ -116,7 +116,13 @@ Defined in `web/src/types/sermon.ts` exactly as above.
 
 - **Upload recording**: drop-zone or file picker (MP3/M4A/WAV/MP4/WebM). Dragging a file anywhere on the page shows a full-screen "Drop to add your recording" overlay (`useRecordingFileDrop.ts`); releasing attaches it and auto-selects Upload.
   - **Auto-fill on drop/pick (create mode only)**: empty Sermon title is filled from the file name (extension stripped, `_`/`-` → spaces); empty Date preached is filled from the file's creation date (`File.lastModified`). Both fields briefly flash `bg-green-50` (quick fade in/out) so the user sees what was filled, and a notice mentions "Title and date were prefilled from the file."
-- **YouTube**: collects a URL; no YouTube integration yet.
+- **YouTube**: paste a URL — `POST /youtube/preview` prefills empty
+  title/date/scripture from the video's public metadata and shows a preview
+  card (thumbnail, channel, description); captions are imported in the
+  background through the `transcription_jobs` worker
+  (`provider="youtube_captions"`). The form flashes the auto-filled fields.
+  A CLI script (`api/scripts/import_youtube_archive.py`) bulk-imports a
+  whole channel, deduping on `youtube_video_id`.
 - **Paste transcript**: transcript required.
 
 Validation is client-side with `alert()` for errors. The Cancel button returns to `/app/sermons` (create) or the sermon page (edit).

@@ -79,56 +79,42 @@ def test_sermon_read_includes_youtube_fields(db_session):
     assert read.youtube_thumbnail_url is not None
 
 
-class FakeTranscript:
-    def fetch(self):
+class FakeFetchedTranscript:
+    def to_raw_data(self):
         return [
             {"text": "Hello church,", "start": 0.0, "duration": 2.0},
             {"text": "please open with me to Psalm 23.", "start": 2.0, "duration": 3.0},
         ]
 
 
-class FakeTranscriptList:
-    def find_manually_created_transcript(self, languages):
-        raise RuntimeError("no manual transcript")
-
-    def find_generated_transcript(self, languages):
-        assert languages == ["en", "en-US", "en-GB"]
-        return FakeTranscript()
-
-
 class FakeYouTubeTranscriptApi:
-    @staticmethod
-    def list_transcripts(video_id):
+    def fetch(self, video_id, languages):
         assert video_id == "dQw4w9WgXcQ"
-        return FakeTranscriptList()
+        assert languages == ["en", "en-US", "en-GB"]
+        return FakeFetchedTranscript()
+
+
+import asyncio
 
 
 def test_fetch_auto_captions_returns_paragraphized_text(monkeypatch):
     monkeypatch.setattr(
         "app.services.youtube.YouTubeTranscriptApi", FakeYouTubeTranscriptApi
     )
-    text = fetch_auto_captions("dQw4w9WgXcQ")
+    text = asyncio.run(fetch_auto_captions("dQw4w9WgXcQ"))
     assert "Hello church, please open with me to Psalm 23." in text
 
 
 def test_fetch_auto_captions_raises_when_missing(monkeypatch):
-    class NoTranscripts:
-        def find_manually_created_transcript(self, languages):
-            raise RuntimeError("none")
-
-        def find_generated_transcript(self, languages):
-            raise RuntimeError("none")
-
     class FakeApiNoTranscripts:
-        @staticmethod
-        def list_transcripts(video_id):
-            return NoTranscripts()
+        def fetch(self, video_id, languages):
+            raise RuntimeError("none")
 
     monkeypatch.setattr(
         "app.services.youtube.YouTubeTranscriptApi", FakeApiNoTranscripts
     )
     try:
-        fetch_auto_captions("dQw4w9WgXcQ")
+        asyncio.run(fetch_auto_captions("dQw4w9WgXcQ"))
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
         assert "No English captions" in str(exc)
