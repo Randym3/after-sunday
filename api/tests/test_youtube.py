@@ -1,4 +1,11 @@
-from app.services.youtube import detect_scripture_reference, parse_youtube_video_id
+import uuid
+
+from app.schemas.sermon import SermonRead
+from app.services.youtube import (
+    detect_scripture_reference,
+    fetch_auto_captions,
+    parse_youtube_video_id,
+)
 
 
 def test_parse_watch_url():
@@ -51,3 +58,77 @@ def test_detect_scripture_reference():
     assert detect_scripture_reference("1 John 1:9 sermon") == "1 John 1:9"
     assert detect_scripture_reference("Church announcements and testimonies") is None
     assert detect_scripture_reference("") is None
+
+
+def test_sermon_read_includes_youtube_fields(db_session):
+    from app.models.sermon import Sermon
+
+    sermon = Sermon(
+        created_by_user_id=uuid.uuid4(),
+        title="Psalm 23",
+        source_type="youtube",
+        source_url="https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+        youtube_video_id="dQw4w9WgXcQ",
+        youtube_thumbnail_url="https://i.ytimg.com/vi/dQw4w9WgXcQ/hqdefault.jpg",
+    )
+    db_session.add(sermon)
+    db_session.commit()
+
+    read = SermonRead.model_validate(sermon)
+    assert read.youtube_video_id == "dQw4w9WgXcQ"
+    assert read.youtube_thumbnail_url is not None
+
+
+class FakeTranscript:
+    def fetch(self):
+        return [
+            {"text": "Hello church,", "start": 0.0, "duration": 2.0},
+            {"text": "please open with me to Psalm 23.", "start": 2.0, "duration": 3.0},
+        ]
+
+
+class FakeTranscriptList:
+    def find_manually_created_transcript(self, languages):
+        raise RuntimeError("no manual transcript")
+
+    def find_generated_transcript(self, languages):
+        assert languages == ["en", "en-US", "en-GB"]
+        return FakeTranscript()
+
+
+class FakeYouTubeTranscriptApi:
+    @staticmethod
+    def list_transcripts(video_id):
+        assert video_id == "dQw4w9WgXcQ"
+        return FakeTranscriptList()
+
+
+def test_fetch_auto_captions_returns_paragraphized_text(monkeypatch):
+    monkeypatch.setattr(
+        "app.services.youtube.YouTubeTranscriptApi", FakeYouTubeTranscriptApi
+    )
+    text = fetch_auto_captions("dQw4w9WgXcQ")
+    assert "Hello church, please open with me to Psalm 23." in text
+
+
+def test_fetch_auto_captions_raises_when_missing(monkeypatch):
+    class NoTranscripts:
+        def find_manually_created_transcript(self, languages):
+            raise RuntimeError("none")
+
+        def find_generated_transcript(self, languages):
+            raise RuntimeError("none")
+
+    class FakeApiNoTranscripts:
+        @staticmethod
+        def list_transcripts(video_id):
+            return NoTranscripts()
+
+    monkeypatch.setattr(
+        "app.services.youtube.YouTubeTranscriptApi", FakeApiNoTranscripts
+    )
+    try:
+        fetch_auto_captions("dQw4w9WgXcQ")
+        assert False, "expected RuntimeError"
+    except RuntimeError as exc:
+        assert "No English captions" in str(exc)

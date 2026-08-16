@@ -40,6 +40,15 @@ class Sermon(Base):
     media_content_type: Mapped[str | None] = mapped_column(
         String(100), nullable=True
     )
+    youtube_video_id: Mapped[str | None] = mapped_column(
+        String(20), nullable=True, index=True
+    )
+    youtube_thumbnail_url: Mapped[str | None] = mapped_column(
+        String(500), nullable=True
+    )
+    youtube_fetched_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
 
     transcript: Mapped[str | None] = mapped_column(Text, nullable=True)
     transcript_status: Mapped[str] = mapped_column(

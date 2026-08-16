@@ -114,3 +114,32 @@ def fetch_video_metadata(url: str) -> VideoMetadata:
         duration_seconds=info.get("duration"),
         scripture_reference=scripture,
     )
+
+
+def fetch_auto_captions(
+    video_id: str,
+    preferred_languages: tuple[str, ...] = ("en", "en-US", "en-GB"),
+) -> str:
+    """Fetch the video's captions (manual preferred, then auto-generated)."""
+    transcript_list = YouTubeTranscriptApi.list_transcripts(video_id)
+    languages = list(preferred_languages)
+
+    try:
+        transcript = transcript_list.find_manually_created_transcript(languages)
+    except Exception:
+        try:
+            transcript = transcript_list.find_generated_transcript(languages)
+        except Exception as exc:
+            raise RuntimeError(
+                f"No English captions available for video {video_id}."
+            ) from exc
+
+    lines = transcript.fetch()
+    text = " ".join(
+        (line.get("text") or "").strip()
+        for line in lines
+        if line.get("text", "").strip()
+    )
+    if not text.strip():
+        raise RuntimeError(f"Captions for video {video_id} were empty.")
+    return _paragraphize_text(text)

@@ -105,6 +105,9 @@ class SermonRead(BaseModel):
     media_storage_key: str | None
     media_size_bytes: int | None
     media_content_type: str | None
+    youtube_video_id: str | None
+    youtube_thumbnail_url: str | None
+    youtube_fetched_at: datetime | None
     transcript: str | None
     transcript_status: str
     transcript_error: str | None
