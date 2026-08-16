@@ -11,6 +11,7 @@ import { MediaUploader } from "@/components/sermons/MediaUploader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
 import { listMembers } from "@/lib/api/members";
+import type { YoutubePreview } from "@/lib/api/youtube";
 import { cn } from "@/lib/utils/cn";
 import type { Member } from "@/types/member";
 import {
@@ -327,6 +328,7 @@ export function SermonForm({
       cancelled = true;
     };
   }, []);
+
   const [dragDropNotice, setDragDropNotice] = useState<{
     text: string;
     tone: "success" | "error";
@@ -338,11 +340,78 @@ export function SermonForm({
     title: boolean;
     date: boolean;
   }>({ title: false, date: false });
+  const [youtubePreview, setYoutubePreview] = useState<{
+    loading: boolean;
+    error: string | null;
+    data: YoutubePreview | null;
+  }>({ loading: false, error: null, data: null });
   const flashTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   // Guards the auto-fill/flash against re-entrancy from the input.files
   // assignment firing a second change event for the same file.
   const processedFileRef = useRef<File | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
+
+  // When a YouTube URL is pasted, fetch metadata and prefill empty fields.
+  // All state updates happen inside the timeout callback (never synchronously
+  // in the effect body), so the effect stays a pure subscription.
+  useEffect(() => {
+    const isYoutube =
+      values.sourceType === "youtube" &&
+      Boolean(values.youtubeUrl?.trim());
+    // Non-youtube sources reset the preview immediately (0ms); youtube URLs
+    // debounce the network fetch by 600ms.
+    const handle = window.setTimeout(async () => {
+      const url = values.youtubeUrl?.trim() ?? "";
+      if (values.sourceType !== "youtube" || !url) {
+        setYoutubePreview({ loading: false, error: null, data: null });
+        return;
+      }
+
+      setYoutubePreview((current) => ({
+        ...current,
+        loading: true,
+        error: null,
+      }));
+
+      try {
+        const { previewYoutubeVideo } = await import("@/lib/api/youtube");
+        const preview = await previewYoutubeVideo(url);
+
+        setYoutubePreview({ loading: false, error: null, data: preview });
+
+        // Prefill only empty fields; never clobber what the user typed.
+        setValues((current) => {
+          const next = { ...current };
+          if (!next.title?.trim() && preview.title) {
+            next.title = preview.title;
+          }
+          if (!next.preachedAt && preview.uploadDate) {
+            next.preachedAt = preview.uploadDate;
+          }
+          if (
+            !next.scriptureReference?.trim() &&
+            preview.scriptureReference
+          ) {
+            next.scriptureReference = preview.scriptureReference;
+          }
+          return next;
+        });
+
+        setFlash({ title: true, date: true });
+        window.setTimeout(() => {
+          setFlash({ title: false, date: false });
+        }, 250);
+      } catch {
+        setYoutubePreview({
+          loading: false,
+          error: "Couldn't load that video — check the URL and try again.",
+          data: null,
+        });
+      }
+    }, isYoutube ? 600 : 0);
+
+    return () => window.clearTimeout(handle);
+  }, [values.sourceType, values.youtubeUrl]);
 
   function handleFileDropped(file: File) {
     if (!isAcceptedRecordingFile(file)) {
@@ -1052,10 +1121,58 @@ export function SermonForm({
               />
 
               <p className="mt-2 text-xs leading-5 text-ink-soft">
-                For now, this records the sermon source. YouTube
-                caption importing and connected channels will be
-                implemented later.
+                We&apos;ll pull the title and date from the video, then fetch
+                the transcript automatically.
               </p>
+
+              {youtubePreview.loading ? (
+                <p
+                  role="status"
+                  className="mt-3 text-xs font-medium text-primary"
+                >
+                  Loading video details…
+                </p>
+              ) : null}
+
+              {youtubePreview.error ? (
+                <p
+                  role="status"
+                  className="mt-3 text-xs font-medium text-red-400"
+                >
+                  {youtubePreview.error}
+                </p>
+              ) : null}
+
+              {youtubePreview.data ? (
+                <div className="mt-4 flex gap-4 rounded-2xl border border-edge bg-panel-2 p-4">
+                  {youtubePreview.data.thumbnailUrl ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img
+                      src={youtubePreview.data.thumbnailUrl}
+                      alt=""
+                      className="h-20 w-32 shrink-0 rounded-lg object-cover"
+                    />
+                  ) : null}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-ink">
+                      {youtubePreview.data.title}
+                    </p>
+                    <p className="mt-1 text-xs text-ink-soft">
+                      {[
+                        youtubePreview.data.channelName,
+                        youtubePreview.data.uploadDate,
+                      ]
+                        .filter(Boolean)
+                        .join(" · ")}
+                    </p>
+                    {youtubePreview.data.description ? (
+                      <p className="mt-2 line-clamp-2 text-xs leading-5 text-ink-soft">
+                        {youtubePreview.data.description}
+                      </p>
+                    ) : null}
+                  </div>
+                </div>
+              ) : null}
             </div>
           ) : null}
 <div className="border-t border-edge pt-6">

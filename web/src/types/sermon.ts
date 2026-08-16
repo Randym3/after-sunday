@@ -24,7 +24,11 @@ export interface Sermon {
   preachedAt?: string | null;
 
   sourceType: SermonSourceType;
-  sourceUrl?: string | null;  mediaFileName?: string | null;
+  sourceUrl?: string | null;
+  youtubeVideoId?: string | null;
+  youtubeThumbnailUrl?: string | null;
+  youtubeFetchedAt?: string | null;
+  mediaFileName?: string | null;
   mediaStorageKey?: string | null;
   mediaSizeBytes?: number | null;
   mediaContentType?: string | null;
