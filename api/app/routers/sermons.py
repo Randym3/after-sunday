@@ -25,6 +25,7 @@ from app.services.follow_up import (
     build_follow_up_provider,
 )
 from app.services.transcription import build_provider
+from app.services.youtube import apply_youtube_source
 from app.storage import get_storage
 
 router = APIRouter(prefix="/sermons", tags=["sermons"])
@@ -63,6 +64,23 @@ def create_sermon(
         transcript_status=initial_status,
     )
     db.add(sermon)
+    db.flush()
+
+    # YouTube sermons get their captions imported in the background; skip
+    # when the user already supplied a transcript.
+    if (
+        payload.source_type == "youtube"
+        and not (payload.transcript and payload.transcript.strip())
+    ):
+        if not payload.youtube_url:
+            raise HTTPException(
+                status_code=422, detail="A YouTube URL is required."
+            )
+        try:
+            apply_youtube_source(db, sermon, payload.youtube_url)
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
     db.commit()
     db.refresh(sermon)
     return sermon
@@ -276,6 +294,18 @@ def transcribe_sermon(
 ):
     """Re-queue transcription for a sermon that already has a recording."""
     sermon = _get_sermon_or_404(db, sermon_id)
+
+    if sermon.source_type == "youtube":
+        # Re-queue the caption import (e.g. after a failed fetch).
+        if not sermon.source_url:
+            raise HTTPException(
+                status_code=400,
+                detail="This sermon has no YouTube URL.",
+            )
+        apply_youtube_source(db, sermon, sermon.source_url)
+        db.commit()
+        db.refresh(sermon)
+        return sermon
 
     if not sermon.media_storage_key:
         raise HTTPException(

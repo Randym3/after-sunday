@@ -143,3 +143,48 @@ def fetch_auto_captions(
     if not text.strip():
         raise RuntimeError(f"Captions for video {video_id} were empty.")
     return _paragraphize_text(text)
+
+
+def queue_youtube_caption_import(db: Session, sermon: Sermon) -> TranscriptionJob:
+    """Create/reuse the sermon's transcription job for caption import."""
+    job = db.scalars(
+        select(TranscriptionJob).where(TranscriptionJob.sermon_id == sermon.id)
+    ).first()
+    if job is None:
+        job = TranscriptionJob(
+            id=sermon.id,
+            sermon_id=sermon.id,
+            provider="youtube_captions",
+            status="queued",
+        )
+        db.add(job)
+    else:
+        job.provider = "youtube_captions"
+        job.status = "queued"
+        job.result_text = None
+        job.error_message = None
+        job.started_at = None
+        job.completed_at = None
+
+    # A fresh caption import replaces the old transcript + draft.
+    sermon.transcript = None
+    sermon.transcript_error = None
+    sermon.transcript_status = "queued"
+    sermon.follow_up_subject = None
+    sermon.follow_up_body = None
+    sermon.ai_draft_status = "not_started"
+    sermon.email_status = "not_started"
+    return job
+
+
+def apply_youtube_source(db: Session, sermon: Sermon, url: str) -> None:
+    """Resolve the video id from *url* and queue caption import.
+
+    Raises ValueError when the URL is not a YouTube video URL.
+    """
+    video_id = parse_youtube_video_id(url)
+    if not video_id:
+        raise ValueError("That doesn't look like a YouTube video URL.")
+    sermon.youtube_video_id = video_id
+    sermon.youtube_fetched_at = datetime.now(timezone.utc)
+    queue_youtube_caption_import(db, sermon)

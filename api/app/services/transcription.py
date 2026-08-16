@@ -285,6 +285,81 @@ def build_provider() -> TranscriptionProvider:
     return MockTranscriptionProvider(delay_seconds=4.0)
 
 
+async def _process_transcription_job(
+    db: Session,
+    job: TranscriptionJob,
+    provider: TranscriptionProvider,
+) -> None:
+    """Run one queued job to completion (or failure).
+
+    Extracted from the worker loop so tests can drive a single job without
+    an infinite poll loop. Branches on job.provider: ``youtube_captions``
+    imports a YouTube transcript instead of transcribing a media file.
+    """
+    sermon = db.get(Sermon, job.sermon_id)
+    if sermon is None:
+        job.status = "failed"
+        job.error_message = "Sermon row deleted before transcription started."
+        db.commit()
+        return
+
+    sermon.transcript_status = "processing"
+    db.commit()
+
+    try:
+        if job.provider == "youtube_captions":
+            from app.services.youtube import (
+                fetch_auto_captions,
+                parse_youtube_video_id,
+            )
+
+            video_id = sermon.youtube_video_id
+            if not video_id and sermon.source_url:
+                video_id = parse_youtube_video_id(sermon.source_url)
+            if not video_id:
+                raise RuntimeError(
+                    "No YouTube video id available for caption import."
+                )
+            transcript = await fetch_auto_captions(video_id)
+        else:
+            from app.storage import get_storage
+
+            path = get_storage().retrieve(sermon.media_storage_key)
+            if path is None or isinstance(path, bytes):
+                raise FileNotFoundError(
+                    f"Media file not found for key {sermon.media_storage_key}"
+                )
+            transcript = await provider.transcribe(
+                path, original_filename=sermon.media_file_name
+            )
+
+        job.result_text = transcript
+        job.status = "completed"
+        job.completed_at = datetime.now(timezone.utc)
+
+        sermon.transcript = transcript
+        sermon.transcript_status = "ready"
+        db.commit()
+        print(f"[transcribe] Job {job.id} completed")
+
+    except Exception as exc:
+        import traceback
+
+        tb = traceback.format_exc()
+        print(f"[transcribe] Job failed: {tb}")
+        # Store the full traceback on the job for debugging; store a
+        # short, user-facing message on the sermon so the UI can show it.
+        err_msg = str(exc) or type(exc).__name__
+        try:
+            job.status = "failed"
+            job.error_message = tb
+            sermon.transcript_status = "failed"
+            sermon.transcript_error = err_msg
+            db.commit()
+        except Exception:
+            print(f"[transcribe] Failed to record failure: {traceback.format_exc()}")
+
+
 async def run_transcription_worker(
     provider: TranscriptionProvider,
     poll_interval: float = 2.0,
@@ -317,59 +392,12 @@ async def run_transcription_worker(
                 job.started_at = datetime.now(timezone.utc)
                 db.commit()
 
-                # Load the parent sermon so we can update its transcript fields.
-                sermon = db.get(Sermon, job.sermon_id)
-                if sermon is None:
-                    job.status = "failed"
-                    job.error_message = "Sermon row deleted before transcription started."
-                    db.commit()
-                    continue
-
-                sermon.transcript_status = "processing"
-                db.commit()
-
-                # Run transcription.
-                from app.storage import get_storage
-
-                path = get_storage().retrieve(sermon.media_storage_key)
-                if path is None or isinstance(path, bytes):
-                    raise FileNotFoundError(
-                        f"Media file not found for key {sermon.media_storage_key}"
-                    )
-
-                transcript = await provider.transcribe(path, original_filename=sermon.media_file_name)
-
-                job.result_text = transcript
-                job.status = "completed"
-                job.completed_at = datetime.now(timezone.utc)
-
-                sermon.transcript = transcript
-                sermon.transcript_status = "ready"
-
-                db.commit()
-                print(f"[transcribe] Job {job.id} completed")
-
-            except Exception as exc:
-                import traceback
-
-                tb = traceback.format_exc()
-                print(f"[transcribe] Job failed: {tb}")
-                # Store the full traceback on the job for debugging; store a
-                # short, user-facing message on the sermon so the UI can show it.
-                err_msg = str(exc) or type(exc).__name__
-                try:
-                    job.status = "failed"
-                    job.error_message = tb
-                    if sermon:
-                        sermon.transcript_status = "failed"
-                        sermon.transcript_error = err_msg
-                    db.commit()
-                except Exception:
-                    print(f"[transcribe] Failed to record failure: {traceback.format_exc()}")
+                await _process_transcription_job(db, job, provider)
             finally:
                 db.close()
 
         except Exception:
             import traceback
+
             print(f"[transcribe] Worker loop error: {traceback.format_exc()}")
             await asyncio.sleep(poll_interval)
