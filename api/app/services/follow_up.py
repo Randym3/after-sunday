@@ -12,6 +12,7 @@ from __future__ import annotations
 import abc
 import asyncio
 import json
+import re
 
 from app.config import get_settings
 
@@ -70,7 +71,12 @@ SYSTEM_PROMPT = (
     "     words) that vividly summarizes the message, names the passages "
     "     the preacher used, and applies its encouragement for the reader.\n"
     "  2. The heading \"Three takeaways:\" followed by exactly three numbered "
-    "     takeaways drawn from the sermon.\n"
+    "     takeaways drawn from the sermon. IMPORTANT: when a detected sermon "
+    "     outline is provided in the request context, instead use the heading "
+    "     \"{N} takeaways:\" with the actual number of points (e.g. "
+    "     \"Four takeaways:\") and make the numbered list mirror the "
+    "     preacher's actual outline points, in the same order and wording as "
+    "     extracted. Never invent or replace points when an outline exists.\n"
     "  3. The heading \"Reflection questions:\" followed by exactly three "
     "     numbered reflection questions for the reader.\n"
     "- Separate each section with a blank line: a blank line after the "
@@ -163,6 +169,17 @@ def build_follow_up_prompt(
         f"IMPORTANT: Use the exact assigned preacher name above in the "
         f"summary. {'Do not use the phrase \"the preacher\".' if preacher else 'There is no assigned preacher name, so use a natural generic reference only if needed.'}"
     )
+
+    outline = detect_sermon_outline(transcript)
+    if outline:
+        numbered = "\n".join(
+            f"{i}. {point}" for i, point in enumerate(outline["points"], start=1)
+        )
+        context += (
+            f"\n\nDetected sermon outline ({outline['count']} points) — follow "
+            f"it exactly:\n{numbered}"
+        )
+
     return {
         "system": SYSTEM_PROMPT,
         "user": (
@@ -245,6 +262,7 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
         # spacing between sections regardless of how the model formatted it.
         body = _strip_salutation(body)
         body = _normalize_spacing(body)
+        body = _fix_takeaway_heading_count(body)
         body = _replace_generic_preacher_reference(body, preacher)
         body = f"{GREETING}\n\n{body}"
 
@@ -253,6 +271,143 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
 
 
 _SECTION_HEADINGS = ("three takeaways:", "reflection questions:")
+
+# ── preacher outline detection ────────────────────────────────────────────
+# Best-effort: transcripts announce points in many phrasings ("point number
+# three...", "our second point is...", "the first point will be..."). We
+# collect the distinct numbered points in order and clean the titles from
+# speech-to-text filler so the LLM can mirror the preacher's actual outline.
+
+_OUTLINE_WORDS = {
+    "one": 1, "two": 2, "three": 3, "four": 4, "five": 5, "six": 6,
+}
+_ORDINAL_WORDS = {
+    "first": 1, "second": 2, "third": 3, "fourth": 4,
+    "fifth": 5, "sixth": 6,
+}
+
+_POINT_MARKER_RE = re.compile(
+    r"\b(?:point\s+(?:number\s+)?(one|two|three|four|five|six)"
+    r"|(first|second|third|fourth|fifth|sixth)\s+point)\b",
+    re.IGNORECASE,
+)
+_VERSE_RANGE_RE = re.compile(
+    r"(?:starting\s+in\s+)?verses?\s+\d+\s*(?:to|through|–|-)\s+verses?\s*\d+"
+    r"|(?:starting\s+in\s+)?verses?\s+\d+\s*(?:to|through|–|-)\s*\d+",
+    re.IGNORECASE,
+)
+_LEADING_FILLER_RE = re.compile(
+    r"^\s*(?:will\s+be\s+to\s+|will\s+be\s+|is\s+to\s+|is\s+"
+    r"|to\s+|and\s+|so\s+|,?\s*)*",
+    re.IGNORECASE,
+)
+
+
+def detect_sermon_outline(transcript: str) -> dict | None:
+    """Extract a preacher's numbered outline from a transcript, best-effort.
+
+    Returns ``{"count": N, "points": [title, ...]}`` when the transcript
+    announces at least two distinct numbered points (e.g. "point number
+    three ... is to share the road"), else ``None``. Titles are cleaned of
+    speech-to-text filler but otherwise kept verbatim.
+    """
+    if not transcript:
+        return None
+
+    markers = list(_POINT_MARKER_RE.finditer(transcript))
+    if not markers:
+        return None
+
+    points_by_number: dict[int, str] = {}
+    for idx, marker in enumerate(markers):
+        word = (marker.group(1) or marker.group(2) or "").lower()
+        number = _OUTLINE_WORDS.get(word) or _ORDINAL_WORDS.get(word)
+        if number is None or number in points_by_number:
+            continue
+        # Read until the next marker (or a bounded window) and clean the title.
+        end = (
+            markers[idx + 1].start()
+            if idx + 1 < len(markers)
+            else min(marker.end() + 300, len(transcript))
+        )
+        segment = transcript[marker.end():end]
+        title = _clean_outline_title(segment)
+        if title:
+            points_by_number[number] = title
+
+    if len(points_by_number) < 2:
+        return None
+
+    points = [points_by_number[n] for n in sorted(points_by_number)]
+    return {"count": len(points), "points": points}
+
+
+def _clean_outline_title(segment: str) -> str | None:
+    """Turn the text after a point marker into a usable point title."""
+    text = _VERSE_RANGE_RE.sub(" ", segment)
+    text = _LEADING_FILLER_RE.sub("", text)
+    # First sentence only.
+    text = re.split(r"[.!?]", text, maxsplit=1)[0].strip(" ,")
+    text = re.sub(r"\s+", " ", text).strip()
+    if len(text) < 4 or len(text) > 120:
+        return None
+    return text
+
+
+_TAKEAWAYS_HEADING_RE = re.compile(
+    r"^(one|two|three|four|five|six|seven|eight|nine|ten)\s+takeaways:",
+    re.IGNORECASE,
+)
+_NUMBER_WORDS = [None, "one", "two", "three", "four", "five",
+                 "six", "seven", "eight", "nine", "ten"]
+
+
+def _fix_takeaway_heading_count(text: str) -> str:
+    """Correct a takeaways heading number to match the list that follows it.
+
+    Models are told to use an ``{N} takeaways:`` heading mirroring the detected
+    outline, but they sometimes fall back to "Three takeaways:" while still
+    writing four items. This walks the lines, finds a takeaways heading, counts
+    the consecutive numbered items under it, and rewrites the heading number to
+    match (so the email never says "Three takeaways" above four points).
+    """
+    lines = text.split("\n")
+    out: list[str] = []
+    i = 0
+    while i < len(lines):
+        line = lines[i]
+        match = _TAKEAWAYS_HEADING_RE.match(line.strip())
+        if not match:
+            out.append(line)
+            i += 1
+            continue
+
+        # Count consecutive numbered items directly after the heading.
+        count = 0
+        j = i + 1
+        while j < len(lines):
+            item = lines[j].strip()
+            if not item:
+                j += 1
+                continue
+            if re.match(r"^\d+[.)]\s+", item):
+                count += 1
+                j += 1
+            else:
+                break
+
+        word = match.group(1).lower()
+        current = _NUMBER_WORDS.index(word) if word in _NUMBER_WORDS else 0
+        if 1 <= count <= 10 and count != current:
+            fixed = line.strip()
+            fixed = re.sub(
+                r"^\w+", _NUMBER_WORDS[count].capitalize(), fixed, count=1
+            )
+            out.append(fixed)
+        else:
+            out.append(line)
+        i += 1
+    return "\n".join(out)
 
 
 def _normalize_spacing(text: str) -> str:
@@ -282,7 +437,10 @@ def _normalize_spacing(text: str) -> str:
             continue
 
         lowered = ln.lower()
-        is_heading = any(lowered.startswith(h) for h in _SECTION_HEADINGS)
+        is_heading = (
+            lowered == "reflection questions:"
+            or lowered.endswith("takeaways:")
+        )
 
         if is_heading:
             flush()

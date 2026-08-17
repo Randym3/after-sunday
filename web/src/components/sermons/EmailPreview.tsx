@@ -12,8 +12,8 @@ interface EmailPreviewProps {
 }
 
 const numberedItem = /^\s*\d+[.)]\s+(.+)$/;
+const takeawaysHeading = /^(one|two|three|four|five|six|seven|eight|nine|ten)\s+takeaways:\s*$/i;
 const sectionHeadings: Record<string, string> = {
-  "three takeaways:": "Three takeaways",
   "reflection questions:": "Reflection questions",
 };
 
@@ -56,10 +56,10 @@ function renderPreviewBody(body: string): ReactNode[] {
       </ol>
     );
 
-    if (section === "Three takeaways") {
+    if (section && section.toLowerCase().endsWith("takeaways")) {
       blocks.push(
         <div key={`takeaways-${blocks.length}`} className="mb-6 mt-6 rounded-xl bg-[#edf3ff] p-5">
-          <p className="text-base font-bold text-stone-900">Three takeaways</p>
+          <p className="text-base font-bold text-stone-900">{section}</p>
           {list}
         </div>,
       );
@@ -89,7 +89,10 @@ function renderPreviewBody(body: string): ReactNode[] {
       continue;
     }
 
-    const heading = sectionHeadings[line.toLowerCase()];
+    let heading = sectionHeadings[line.toLowerCase()];
+    if (!heading && takeawaysHeading.test(line)) {
+      heading = line.trim().replace(/:\s*$/, "").replace(/^\w/, (c) => c.toUpperCase());
+    }
     if (heading) {
       flushParagraph();
       flushList();

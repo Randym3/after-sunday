@@ -75,8 +75,8 @@ def apply_email_settings(
 
 
 _NUMBERED_ITEM = re.compile(r"^\s*\d+[.)]\s+(.+)$")
+_TAKEAWAYS_HEADING = re.compile(r"^(?:one|two|three|four|five|six|seven|eight|nine|ten)\s+takeaways:\s*$", re.IGNORECASE)
 _SECTION_HEADINGS = {
-    "three takeaways:": "Three takeaways",
     "reflection questions:": "Reflection questions",
 }
 
@@ -130,12 +130,12 @@ def _render_body_blocks(body: str) -> str:
             '<ol style="margin:12px 0 0;padding-left:24px;color:#332f2a;'
             f'font-size:16px;line-height:1.65;">{items}</ol>'
         )
-        if section == "Three takeaways":
+        if section and section.lower().endswith("takeaways"):
             blocks.append(
                 '<div style="margin:22px 0;padding:20px;background:#edf3ff;'
                 'border-radius:12px;">'
-                '<p style="margin:0;color:#211f1c;font-size:16px;line-height:1.4;'
-                'font-weight:700;">Three takeaways</p>'
+                f'<p style="margin:0;color:#211f1c;font-size:16px;line-height:1.4;'
+                f'font-weight:700;">{escape(section)}</p>'
                 f"{list_html}</div>"
             )
         elif section == "Reflection questions":
@@ -158,6 +158,9 @@ def _render_body_blocks(body: str) -> str:
             continue
 
         heading = _SECTION_HEADINGS.get(line.lower())
+        if not heading and _TAKEAWAYS_HEADING.match(line):
+            # e.g. "Four takeaways:" → "Four takeaways"
+            heading = line.strip().rstrip(":").capitalize()
         if heading:
             flush_paragraph()
             flush_list()

@@ -50,3 +50,26 @@ def test_html_embeds_logo_data_uri():
         logo_data_uri="data:image/png;base64,ZmFrZQ==",
     )
     assert 'src="data:image/png;base64,ZmFrZQ=="' in html
+
+
+def test_html_renders_four_takeaways_heading():
+    html = render_test_email_html(
+        "A summary.\n\n"
+        "Four takeaways:\n\n"
+        "1. Don't be afraid to ask for directions.\n"
+        "2. Don't forget to pick up the kids.\n"
+        "3. Share the road.\n"
+        "4. Stay in your lane.",
+        "Grace Church",
+        "A thought from Sunday",
+    )
+    assert "Four takeaways</p>" in html
+    assert "background:#edf3ff" in html
+    assert html.count("<li") == 4
+
+
+def test_html_ignores_unknown_takeaway_counts():
+    # "Fifty takeaways" is not a valid heading and should render as text.
+    html = render_test_email_html("Fifty takeaways:\n\n1. Nope.", "Grace Church")
+    assert "Fifty takeaways:" in html
+    assert "background:#edf3ff" not in html
