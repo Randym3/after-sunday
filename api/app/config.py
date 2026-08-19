@@ -23,7 +23,7 @@ class Settings(BaseSettings):
     # is used (dev only).
     llm_base_url: str = "https://api.groq.com/openai/v1"
     llm_api_key: str = ""
-    llm_model: str = "llama-3.3-70b-versatile"
+    llm_model: str = "openai/gpt-oss-20b"
     # Resend is used for test sends in the first email-delivery slice.
     resend_api_key: str = ""
     email_from: str = ""

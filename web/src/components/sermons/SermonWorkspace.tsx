@@ -495,11 +495,12 @@ export function SermonWorkspace({
           ? { ...current, aiDraftStatus: "not_started" }
           : current,
       );
-      setFollowUpError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Unable to generate the follow-up draft.",
-      );
+          : "Unable to generate the follow-up draft.";
+      setFollowUpError(message);
+      toast(message, "error");
     }
   }
 

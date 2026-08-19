@@ -148,6 +148,52 @@ class MockFollowUpProvider(FollowUpProvider):
         }
 
 
+_MAX_TRANSCRIPT_CHARS = 16_000
+
+
+def _truncate_transcript(transcript: str) -> str:
+    """Cap the transcript sent to the model so the request fits the
+    provider's token budget. Outline detection still runs on the full
+    transcript before this is applied."""
+    if len(transcript) <= _MAX_TRANSCRIPT_CHARS:
+        return transcript
+    cut = transcript[:_MAX_TRANSCRIPT_CHARS]
+    space = cut.rfind(" ")
+    if space > _MAX_TRANSCRIPT_CHARS * 0.8:
+        cut = cut[:space]
+    return (
+        cut.rstrip()
+        + "\n\n[... transcript truncated for length; the above covers the "
+        "majority of the sermon ...]"
+    )
+
+
+def _parse_json_object(content: str) -> dict:
+    """Parse the model's JSON response, tolerating markdown fences or
+    surrounding prose. Raises once (no retries) on failure."""
+    text = content.strip()
+    if not text:
+        raise RuntimeError("LLM returned an empty response")
+
+    unfenced = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
+    candidates = [unfenced]
+    start = unfenced.find("{")
+    end = unfenced.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(unfenced[start : end + 1])
+
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            raise RuntimeError("LLM returned JSON, but it was not an object")
+        return data
+
+    raise RuntimeError(f"LLM returned invalid JSON: {content[:200]!r}")
+
+
 def build_follow_up_prompt(
     *,
     title: str,
@@ -179,6 +225,8 @@ def build_follow_up_prompt(
             f"\n\nDetected sermon outline ({outline['count']} points) — follow "
             f"it exactly:\n{numbered}"
         )
+
+    transcript = _truncate_transcript(transcript)
 
     return {
         "system": SYSTEM_PROMPT,
@@ -232,7 +280,6 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
 
         response = await client.chat.completions.create(
             model=self._model,
-            response_format={"type": "json_object"},
             temperature=0.7,
             messages=[
                 {"role": "system", "content": prompt["system"]},
@@ -241,12 +288,7 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
         )
 
         content = response.choices[0].message.content or ""
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"LLM returned invalid JSON: {content[:200]!r}"
-            ) from exc
+        data = _parse_json_object(content)
 
         subject = str(data.get("subject") or "").strip()
         body = str(data.get("body") or "").strip()

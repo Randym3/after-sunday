@@ -171,7 +171,11 @@ export function FollowUpEditor({
         </Button>
         </div>
 
-          {!canGenerate ? (
+          {error ? (
+            <p className="mt-3 break-words text-sm font-medium text-red-400">
+              {error}
+            </p>
+          ) : !canGenerate ? (
             <p className="mt-3 text-xs text-ink-soft">
               A reviewed transcript is required before generating a
               draft.
