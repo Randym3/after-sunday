@@ -176,6 +176,8 @@ Persisted drafts are stored on the sermon row. Each newly generated draft record
 
 Approval invalidation is implemented: editing the subject, body, or transcript after approval returns `aiDraftStatus` to `draft_ready` and `emailStatus` to `draft`.
 
+Long follow-up generation uses a bounded, resumable map-reduce pipeline for transcripts over 16,000 characters: sentence-boundary chunks are mapped with at most two compact plain-text requests in flight, each completed section is persisted in `follow_up_jobs`, and the final notes are reduced into the email. Short transcripts retain the direct request path, outline detection runs over the complete raw transcript, and the UI polls persisted generation progress/errors. `LLM_MAP_MODEL` and `LLM_REDUCE_MODEL` optionally override the shared `LLM_MODEL`.
+
 ## Backend
 
 The FastAPI app implements the sermon vertical slice plus member CRUD plus chunked media upload:

@@ -13,6 +13,7 @@ import abc
 import asyncio
 import json
 import re
+from collections.abc import Awaitable, Callable
 
 from app.config import get_settings
 
@@ -71,12 +72,14 @@ SYSTEM_PROMPT = (
     "     words) that vividly summarizes the message, names the passages "
     "     the preacher used, and applies its encouragement for the reader.\n"
     "  2. The heading \"Three takeaways:\" followed by exactly three numbered "
-    "     takeaways drawn from the sermon. IMPORTANT: when a detected sermon "
-    "     outline is provided in the request context, instead use the heading "
-    "     \"{N} takeaways:\" with the actual number of points (e.g. "
-    "     \"Four takeaways:\") and make the numbered list mirror the "
-    "     preacher's actual outline points, in the same order and wording as "
-    "     extracted. Never invent or replace points when an outline exists.\n"
+    "     takeaways. Each takeaway must be a thoughtful 1–2 sentence synthesis "
+    "     of roughly 25–45 words, like a pastoral reflection that explains the "
+    "     passage, the truth being taught, and its significance for believers. "
+    "     Do not write fragments, short labels, generic advice, or repetitive "
+    "     one-line summaries. When a detected outline has more than three "
+    "     points, synthesize or group those points into exactly three broader "
+    "     themes while preserving the sermon's actual content. Never use a "
+    "     \"Four takeaways:\" heading or output more than three items.\n"
     "  3. The heading \"Reflection questions:\" followed by exactly three "
     "     numbered reflection questions for the reader.\n"
     "- Separate each section with a blank line: a blank line after the "
@@ -85,10 +88,28 @@ SYSTEM_PROMPT = (
     "  questions:\" heading.\n"
     "- Keep the whole body around 300–380 words, with the opening summary "
     "  accounting for roughly a third of it. Use short paragraphs.\n"
-    "- Respond only with a JSON object containing exactly two keys: \"subject\" "
-    "(a friendly email subject line, under 60 characters) and \"body\" (the full "
-    "email body). No markdown, no commentary outside the JSON."
+    "- Respond using exactly this plain-text format, with no markdown fences or "
+    "commentary:\n"
+    "SUBJECT: <a friendly email subject line under 60 characters>\n"
+    "BODY:\n<the full email body>"
 )
+
+
+CHUNK_EXTRACT_PROMPT = (
+    "Extract compact factual notes from this section of a sermon transcript. "
+    "Return plain text only, not JSON and not an email. Use these labels:\n"
+    "MAIN THEMES:\nSCRIPTURE:\nSTORIES AND APPLICATIONS:\n"
+    "Keep the complete response under 180 words. Include exact scripture "
+    "references, memorable phrases, and applications when present. Do not "
+    "invent details or add a greeting."
+)
+# gpt-oss is a reasoning model: a very small completion cap can be consumed
+# entirely by hidden reasoning, leaving message.content empty. Low reasoning
+# effort plus a bounded completion budget leaves room for visible JSON without
+# enabling retries or unbounded output.
+MAP_MAX_OUTPUT_TOKENS = 800
+REDUCE_MAX_OUTPUT_TOKENS = 1_000
+MAP_CONCURRENCY = 2
 
 
 class FollowUpProvider(abc.ABC):
@@ -106,6 +127,8 @@ class FollowUpProvider(abc.ABC):
         preacher: str | None,
         scripture_reference: str | None,
         transcript: str,
+        existing_notes: list[str | None] | None = None,
+        on_chunk_complete: Callable[[int, str], Awaitable[None]] | None = None,
     ) -> dict:
         """Return ``{"subject": str, "body": str}``.
 
@@ -131,6 +154,8 @@ class MockFollowUpProvider(FollowUpProvider):
         preacher: str | None,
         scripture_reference: str | None,
         transcript: str,
+        existing_notes: list[str | None] | None = None,
+        on_chunk_complete: Callable[[int, str], Awaitable[None]] | None = None,
     ) -> dict:
         print(
             f"[follow-up] Mock generate for {title!r} "
@@ -146,6 +171,31 @@ class MockFollowUpProvider(FollowUpProvider):
             "subject": MOCK_FOLLOW_UP_SUBJECT,
             "body": f"{GREETING}\n\n{body}",
         }
+
+
+# Long transcripts are truncated before hitting the LLM. Outline detection
+# runs on the FULL transcript above, so key structure is preserved; this cap
+# keeps each request comfortably under the default model's 8k TPM limit
+# (openai/gpt-oss-20b): 16k chars is ~5k tokens, plus ~0.5k for the system
+# prompt, without repeating calls that spend additional quota.
+# Full-transcript coverage is handled by the map-reduce pipeline (see
+# docs/superpowers/plans/2026-08-17-long-transcript-map-reduce.md).
+_MAX_TRANSCRIPT_CHARS = 16_000
+
+
+def _truncate_transcript(transcript: str) -> str:
+    if len(transcript) <= _MAX_TRANSCRIPT_CHARS:
+        return transcript
+    cut = transcript[:_MAX_TRANSCRIPT_CHARS]
+    # Prefer to cut at a word boundary, and never mid-sentence marker.
+    space = cut.rfind(" ")
+    if space > _MAX_TRANSCRIPT_CHARS * 0.8:
+        cut = cut[:space]
+    return (
+        cut.rstrip()
+        + "\n\n[... transcript truncated for length; the above covers the "
+        "majority of the sermon ...]"
+    )
 
 
 def build_follow_up_prompt(
@@ -176,15 +226,15 @@ def build_follow_up_prompt(
             f"{i}. {point}" for i, point in enumerate(outline["points"], start=1)
         )
         context += (
-            f"\n\nDetected sermon outline ({outline['count']} points) — follow "
-            f"it exactly:\n{numbered}"
+            f"\n\nDetected sermon outline ({outline['count']} points) — use it as source "
+            f"material and synthesize it into exactly three takeaways:\n{numbered}"
         )
 
     return {
         "system": SYSTEM_PROMPT,
         "user": (
             f"{context}\n\n"
-            f"Sermon transcript:\n\n{transcript}"
+            f"Sermon transcript:\n\n{_truncate_transcript(transcript)}"
         ),
     }
 
@@ -194,17 +244,153 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
 
     Uses the already-installed ``openai`` SDK pointed at a configurable base
     URL, so the same class serves Groq (default), OpenRouter, GitHub Models,
-    NVIDIA NIM, or a local server. Responses are requested as JSON
-    (``{subject, body}``).
+    NVIDIA NIM, or a local server. The final response uses explicit
+    ``SUBJECT:`` / ``BODY:`` delimiters; legacy JSON responses are also
+    accepted for compatibility.
     """
 
     provider_name = "openai_compatible"
 
-    def __init__(self, api_key: str, base_url: str, model: str) -> None:
+    def __init__(
+        self,
+        api_key: str,
+        base_url: str,
+        model: str,
+        map_model: str | None = None,
+        reduce_model: str | None = None,
+    ) -> None:
         self._api_key = api_key
         self._base_url = base_url
-        self._model = model
-        self.model_name = model
+        self._map_model = map_model or model
+        self._reduce_model = reduce_model or model
+        self._model = self._reduce_model
+        self.model_name = self._reduce_model
+        self.map_model_name = self._map_model
+
+    @staticmethod
+    def _completion_kwargs(
+        *,
+        model: str,
+        system: str,
+        user: str,
+        max_tokens: int,
+        temperature: float,
+        reasoning_effort: str,
+    ) -> dict:
+        kwargs = {
+            "model": model,
+            "temperature": temperature,
+            "max_completion_tokens": max_tokens,
+            "messages": [
+                {"role": "system", "content": system},
+                {"role": "user", "content": user},
+            ],
+        }
+        # Groq's compound router rejects this OpenAI reasoning parameter;
+        # GPT-OSS requires it to avoid consuming the whole output budget on
+        # hidden reasoning. Keep provider-specific options out of other calls.
+        if "gpt-oss" in model.lower():
+            kwargs["reasoning_effort"] = reasoning_effort
+        return kwargs
+
+    async def _chat_text(
+        self,
+        client,
+        system: str,
+        user: str,
+        *,
+        max_tokens: int,
+        temperature: float,
+        reasoning_effort: str = "low",
+    ) -> str:
+        """Make exactly one map request and return plain text."""
+        response = await client.chat.completions.create(
+            **self._completion_kwargs(
+                model=self._map_model,
+                system=system,
+                user=user,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
+            )
+        )
+        content = response.choices[0].message.content or ""
+        if not content.strip():
+            raise RuntimeError("LLM returned an empty map response")
+        return content.strip()
+
+    async def _chat_json(
+        self,
+        client,
+        system: str,
+        user: str,
+        *,
+        max_tokens: int,
+        temperature: float,
+        reasoning_effort: str = "low",
+    ) -> dict:
+        """Make exactly one reduce request and parse its text response."""
+        response = await client.chat.completions.create(
+            **self._completion_kwargs(
+                model=self._reduce_model,
+                system=system,
+                user=user,
+                max_tokens=max_tokens,
+                temperature=temperature,
+                reasoning_effort=reasoning_effort,
+            )
+        )
+        content = response.choices[0].message.content or ""
+        return _parse_follow_up_output(content)
+
+    async def _map_transcript_chunks(
+        self,
+        client,
+        chunks: list[str],
+        existing_notes: list[str | None] | None = None,
+        on_chunk_complete: Callable[[int, str], Awaitable[None]] | None = None,
+    ) -> list[str]:
+        """Extract notes, skipping persisted sections and saving completions."""
+        semaphore = asyncio.Semaphore(MAP_CONCURRENCY)
+        progress_lock = asyncio.Lock()
+        total = len(chunks)
+        notes: list[str | None] = (
+            list(existing_notes)
+            if existing_notes and len(existing_notes) == total
+            else [None] * total
+        )
+
+        async def map_one(index: int, chunk: str) -> str:
+            if notes[index]:
+                return str(notes[index])
+            async with semaphore:
+                print(f"[follow-up] Mapping transcript section {index + 1}/{total}")
+                note = await self._chat_text(
+                    client,
+                    CHUNK_EXTRACT_PROMPT,
+                    f"Transcript section {index + 1}/{total}:\n\n{chunk}",
+                    max_tokens=MAP_MAX_OUTPUT_TOKENS,
+                    temperature=0.2,
+                )
+                notes[index] = note
+                if on_chunk_complete:
+                    async with progress_lock:
+                        await on_chunk_complete(index, note)
+                return note
+
+        results = await asyncio.gather(
+            *(map_one(index, chunk) for index, chunk in enumerate(chunks)),
+            return_exceptions=True,
+        )
+        for index, result in enumerate(results):
+            if isinstance(result, Exception):
+                message = (
+                    f"LLM map failed for transcript section {index + 1}/{total}: "
+                    f"{type(result).__name__}: {result}"
+                )
+                print(f"[follow-up] {message}")
+                raise RuntimeError(message) from result
+        return [str(result) for result in results]
 
     async def generate(
         self,
@@ -213,55 +399,64 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
         preacher: str | None,
         scripture_reference: str | None,
         transcript: str,
+        existing_notes: list[str | None] | None = None,
+        on_chunk_complete: Callable[[int, str], Awaitable[None]] | None = None,
     ) -> dict:
         from openai import AsyncOpenAI
+        from app.services.transcript_chunking import chunk_transcript
 
         client = AsyncOpenAI(api_key=self._api_key, base_url=self._base_url)
-
-        prompt = build_follow_up_prompt(
-            title=title,
-            preacher=preacher,
-            scripture_reference=scripture_reference,
-            transcript=transcript,
-        )
-
         print(
             f"[follow-up] Generating draft for {title!r} via "
             f"{self._base_url} ({self._model})"
         )
 
-        response = await client.chat.completions.create(
-            model=self._model,
-            response_format={"type": "json_object"},
-            temperature=0.7,
-            messages=[
-                {"role": "system", "content": prompt["system"]},
-                {"role": "user", "content": prompt["user"]},
-            ],
-        )
-
-        content = response.choices[0].message.content or ""
-        try:
-            data = json.loads(content)
-        except json.JSONDecodeError as exc:
-            raise RuntimeError(
-                f"LLM returned invalid JSON: {content[:200]!r}"
-            ) from exc
+        if len(transcript) <= _MAX_TRANSCRIPT_CHARS:
+            prompt = build_follow_up_prompt(
+                title=title,
+                preacher=preacher,
+                scripture_reference=scripture_reference,
+                transcript=transcript,
+            )
+            data = await self._chat_json(
+                client,
+                prompt["system"],
+                prompt["user"],
+                max_tokens=REDUCE_MAX_OUTPUT_TOKENS,
+                temperature=0.7,
+            )
+        else:
+            chunks = chunk_transcript(transcript)
+            notes = await self._map_transcript_chunks(
+                client,
+                chunks,
+                existing_notes=existing_notes,
+                on_chunk_complete=on_chunk_complete,
+            )
+            digest = _merge_chunk_notes([note for note in notes if note])
+            prompt = build_follow_up_reduce_prompt(
+                title=title,
+                preacher=preacher,
+                scripture_reference=scripture_reference,
+                outline=detect_sermon_outline(transcript),
+                digest=digest,
+            )
+            data = await self._chat_json(
+                client,
+                prompt["system"],
+                prompt["user"],
+                max_tokens=REDUCE_MAX_OUTPUT_TOKENS,
+                temperature=0.7,
+            )
 
         subject = str(data.get("subject") or "").strip()
         body = str(data.get("body") or "").strip()
-
         if not subject or not body:
-            raise RuntimeError(
-                f"LLM response missing subject/body: {content[:200]!r}"
-            )
+            raise RuntimeError(f"LLM response missing subject/body: {data!r}")
 
-        # The model is told not to add a salutation, but strip one anyway if
-        # it slipped through, so the greeting below is always the single,
-        # exact {{ firstName }} line. Then enforce consistent blank-line
-        # spacing between sections regardless of how the model formatted it.
         body = _strip_salutation(body)
         body = _normalize_spacing(body)
+        body = _limit_takeaways_to_three(body)
         body = _fix_takeaway_heading_count(body)
         body = _replace_generic_preacher_reference(body, preacher)
         body = f"{GREETING}\n\n{body}"
@@ -270,7 +465,91 @@ class OpenAICompatibleFollowUpProvider(FollowUpProvider):
         return {"subject": subject, "body": body}
 
 
-_SECTION_HEADINGS = ("three takeaways:", "reflection questions:")
+def _parse_follow_up_output(content: str) -> dict:
+    """Parse the final delimited output, with JSON compatibility fallback."""
+    text = content.strip()
+    if not text:
+        raise RuntimeError("LLM returned an empty reduce response")
+
+    subject_match = re.search(r"(?im)^\s*SUBJECT\s*:\s*(.+?)\s*$", text)
+    body_match = re.search(r"(?is)(?:^|\n)\s*BODY\s*:\s*\n?(.*)\Z", text)
+    if subject_match and body_match and body_match.group(1).strip():
+        return {
+            "subject": subject_match.group(1).strip(),
+            "body": body_match.group(1).strip(),
+        }
+
+    return _parse_json_object(text)
+
+
+def _parse_json_object(content: str) -> dict:
+    """Parse a legacy model JSON object, tolerating a markdown code fence."""
+    text = content.strip()
+    if not text:
+        raise RuntimeError("LLM returned an empty response")
+
+    unfenced = re.sub(r"^```(?:json)?\s*|\s*```$", "", text, flags=re.IGNORECASE)
+    candidates = [unfenced]
+    start = unfenced.find("{")
+    end = unfenced.rfind("}")
+    if start >= 0 and end > start:
+        candidates.append(unfenced[start : end + 1])
+
+    for candidate in candidates:
+        try:
+            data = json.loads(candidate)
+        except json.JSONDecodeError:
+            continue
+        if not isinstance(data, dict):
+            raise RuntimeError("LLM returned JSON, but it was not an object")
+        return data
+
+    raise RuntimeError(f"LLM returned invalid JSON: {content[:200]!r}")
+
+
+def _merge_chunk_notes(notes: list[str]) -> str:
+    """Join ordered map notes into the digest used by the reduce request."""
+    total = len(notes)
+    return "\n\n".join(
+        f"[Chunk {index}/{total}]\n{note}"
+        for index, note in enumerate(notes, start=1)
+    )
+
+
+def build_follow_up_reduce_prompt(
+    *,
+    title: str,
+    preacher: str | None,
+    scripture_reference: str | None,
+    outline: dict | None,
+    digest: str,
+) -> dict:
+    """Build the final prompt from notes covering the complete transcript."""
+    context = (
+        f"Sermon title: {title or '(untitled)'}\n"
+        f"Preacher: {preacher or '(not given)'}\n"
+        f"Scripture reference: {scripture_reference or '(not given)'}\n"
+        f"Assigned preacher name: {preacher or '(not provided)'}"
+    )
+    outline_block = ""
+    if outline:
+        numbered = "\n".join(
+            f"{index}. {point}"
+            for index, point in enumerate(outline["points"], start=1)
+        )
+        outline_block = (
+            f"\n\nDetected sermon outline ({outline['count']} points) — use it as source "
+            f"material and synthesize it into exactly three takeaways:\n{numbered}"
+        )
+    return {
+        "system": SYSTEM_PROMPT,
+        "user": (
+            f"{context}{outline_block}\n\n"
+            "Sermon digest from the full transcript:\n\n"
+            f"{digest}"
+        ),
+    }
+
 
 # ── preacher outline detection ────────────────────────────────────────────
 # Best-effort: transcripts announce points in many phrasings ("point number
@@ -360,6 +639,34 @@ _TAKEAWAYS_HEADING_RE = re.compile(
 )
 _NUMBER_WORDS = [None, "one", "two", "three", "four", "five",
                  "six", "seven", "eight", "nine", "ten"]
+
+
+def _limit_takeaways_to_three(text: str) -> str:
+    """Drop takeaways after the first three if the model over-produces."""
+    lines = text.split("\n")
+    out: list[str] = []
+    in_takeaways = False
+    count = 0
+
+    for line in lines:
+        stripped = line.strip()
+        if _TAKEAWAYS_HEADING_RE.match(stripped):
+            in_takeaways = True
+            count = 0
+            out.append(line)
+            continue
+
+        if in_takeaways and re.match(r"^\d+[.)]\s+", stripped):
+            count += 1
+            if count <= 3:
+                out.append(line)
+            continue
+
+        if in_takeaways and stripped and not re.match(r"^\d+[.)]\s+", stripped):
+            in_takeaways = False
+        out.append(line)
+
+    return "\n".join(out)
 
 
 def _fix_takeaway_heading_count(text: str) -> str:
@@ -503,6 +810,8 @@ def build_follow_up_provider() -> FollowUpProvider:
             api_key=settings.llm_api_key,
             base_url=settings.llm_base_url,
             model=settings.llm_model,
+            map_model=settings.llm_map_model,
+            reduce_model=settings.llm_reduce_model,
         )
     print("[follow-up] No LLM_API_KEY set — using mock provider (dev only)")
     return MockFollowUpProvider(delay_seconds=1.5)

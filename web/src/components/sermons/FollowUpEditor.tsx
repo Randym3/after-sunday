@@ -14,6 +14,7 @@ interface FollowUpEditorProps {
   canGenerate: boolean;
   message?: string;
   error?: string;
+  generationProgress?: string;
   onGenerate: () => void | Promise<void>;
   onSubjectChange: (subject: string) => void;
   onBodyChange: (body: string) => void;
@@ -47,7 +48,7 @@ const statusConfig: Record<
   },
 };
 
-function GeneratingSwirl() {
+function GeneratingSwirl({ progress }: { progress?: string }) {
   return (
     <div
       role="status"
@@ -87,8 +88,8 @@ function GeneratingSwirl() {
       </h3>
 
       <p className="mt-2 max-w-sm text-sm leading-6 text-ink-soft">
-        After Sunday is reviewing the sermon and preparing takeaways,
-        reflection questions, and a pastoral message.
+        {progress ||
+          "After Sunday is reviewing the sermon and preparing takeaways, reflection questions, and a pastoral message."}
       </p>
 
       <div className="mt-5 flex items-center gap-1.5">
@@ -117,6 +118,7 @@ export function FollowUpEditor({
   canGenerate,
   message,
   error,
+  generationProgress,
   onGenerate,
   onSubjectChange,
   onBodyChange,
@@ -149,7 +151,7 @@ export function FollowUpEditor({
       </div>
 
     {status === "generating" ? (
-    <GeneratingSwirl />
+    <GeneratingSwirl progress={generationProgress} />
     ) : !hasDraft ? (
         <div className="flex min-h-80 flex-col items-center justify-center py-10 text-center">
           <h3 className="font-semibold text-ink">
@@ -171,7 +173,11 @@ export function FollowUpEditor({
         </Button>
         </div>
 
-          {!canGenerate ? (
+          {error ? (
+            <p className="mt-3 break-words text-sm font-medium text-red-400">
+              {error}
+            </p>
+          ) : !canGenerate ? (
             <p className="mt-3 text-xs text-ink-soft">
               A reviewed transcript is required before generating a
               draft.

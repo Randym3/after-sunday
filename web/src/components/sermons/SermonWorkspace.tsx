@@ -351,6 +351,35 @@ export function SermonWorkspace({
     };
   }, [isPersistedSermon, persistedSermon, sermonId]);
 
+  // Long follow-up jobs run in the API worker. Poll their persisted progress
+  // so the editor updates without holding the browser request open.
+  const aiDraftStatus = persistedSermon?.aiDraftStatus;
+  useEffect(() => {
+    if (!isPersistedSermon || aiDraftStatus !== "generating") {
+      return;
+    }
+
+    const pollId = setInterval(async () => {
+      try {
+        const serverSermon = await getSermon(sermonId);
+        if (cancelledRef.current) {
+          return;
+        }
+        setPersistedSermon(serverSermon);
+        if (
+          serverSermon.aiGenerationStatus === "failed" &&
+          serverSermon.aiGenerationError
+        ) {
+          setFollowUpError(serverSermon.aiGenerationError);
+        }
+      } catch {
+        // Keep polling; the worker may still be processing.
+      }
+    }, 2000);
+
+    return () => clearInterval(pollId);
+  }, [aiDraftStatus, isPersistedSermon, sermonId]);
+
   function commitSermon(next: Sermon) {
     if (isPersistedSermon) {
       setPersistedSermon(next);
@@ -495,11 +524,12 @@ export function SermonWorkspace({
           ? { ...current, aiDraftStatus: "not_started" }
           : current,
       );
-      setFollowUpError(
+      const message =
         error instanceof Error
           ? error.message
-          : "Unable to generate the follow-up draft.",
-      );
+          : "Unable to generate the follow-up draft.";
+      setFollowUpError(message);
+      toast(message, "error");
     }
   }
 
@@ -999,9 +1029,9 @@ export function SermonWorkspace({
                 >
                   Send test email
                 </Button>
-                <p className="mt-2 text-xs text-ink-soft">
+                {/* <p className="mt-2 text-xs text-ink-soft">
                   Send this draft to one inbox before or after approval.
-                </p>
+                </p> */}
               </div>
             ) : null}
           </Card>
@@ -1014,7 +1044,14 @@ export function SermonWorkspace({
               status={sermon.aiDraftStatus}
               canGenerate={canGenerateFollowUp}
               message={followUpMessage}
-              error={followUpError}
+              error={followUpError || sermon.aiGenerationError || ""}
+              generationProgress={
+                sermon.aiGenerationTotalChunks &&
+                sermon.aiGenerationCompletedChunks !== null &&
+                sermon.aiGenerationCompletedChunks !== undefined
+                  ? `Analyzing sermon sections ${sermon.aiGenerationCompletedChunks} of ${sermon.aiGenerationTotalChunks}…`
+                  : undefined
+              }
               onGenerate={generateFollowUp}
               onSubjectChange={updateFollowUpSubject}
               onBodyChange={updateFollowUpBody}

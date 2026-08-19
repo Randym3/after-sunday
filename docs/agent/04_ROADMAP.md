@@ -99,9 +99,9 @@ Status: complete (2026-08-10). Real follow-up generation is wired end-to-end:
 - `POST /sermons/{id}/follow-up/generate` — validates a `ready` transcript (409 otherwise), calls the provider with title/preacher/scripture/transcript, and persists `follow_up_subject` / `follow_up_body` with `ai_draft_status=draft_ready` and `email_status=draft` on the sermon row (survives reloads).
 - Workspace: Generate / Save Draft / Approve are real API calls (`PATCH` persists drafts and approval); the browser-local mock only remains for the legacy `demo` path.
 
-Provider is swappable at runtime via env vars; free tiers (Groq 1,000 req/day) are ample for church volume. See `docs/agent/04_ROADMAP.md` notes and the free-LLM-API comparison in the agent thread.
+Provider is swappable at runtime via env vars. Long transcripts now use a resumable map-reduce worker: compact 8,000-character sections are extracted as plain text with bounded concurrency of two, each completed section is persisted, and a final reduce request creates the email from the full digest. Short transcripts retain the direct path. `LLM_MAP_MODEL` and `LLM_REDUCE_MODEL` can separate fast extraction from stronger final writing. See `docs/superpowers/plans/2026-08-17-long-transcript-map-reduce.md`.
 
-Remaining in this phase (deferred): per-version draft history, and storing which provider/model generated a draft.
+Remaining in this phase (deferred): per-version draft history, background progress reporting for individual map sections, and storing which provider/model generated a draft.
 
 ## Phase 8 — YouTube Integration
 

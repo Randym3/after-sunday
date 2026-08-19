@@ -74,6 +74,16 @@ class Sermon(Base):
     )
     ai_provider: Mapped[str | None] = mapped_column(String(100), nullable=True)
     ai_model: Mapped[str | None] = mapped_column(String(200), nullable=True)
+    ai_generation_status: Mapped[str] = mapped_column(
+        String(20), nullable=False, default="idle", server_default="idle"
+    )
+    ai_generation_total_chunks: Mapped[int | None] = mapped_column(
+        nullable=True
+    )
+    ai_generation_completed_chunks: Mapped[int | None] = mapped_column(
+        nullable=True
+    )
+    ai_generation_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     email_status: Mapped[str] = mapped_column(
         String(30),
         nullable=False,

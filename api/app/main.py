@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import get_settings
 from app.routers import campaigns, groups, members, sermons, settings, youtube
 from app.models import campaign  # noqa: F401 ensures metadata sees campaign tables
+from app.models import follow_up_job  # noqa: F401 ensures metadata sees follow-up jobs
 from app.models import group  # noqa: F401 ensures metadata sees group tables
 from app.models import member  # noqa: F401 ensures metadata sees member tables
 from app.models import sermon  # noqa: F401 ensures metadata sees sermon tables
@@ -16,27 +17,31 @@ from app.models import setting  # noqa: F401 ensures metadata sees settings tabl
 from app.models import transcription_job  # noqa: F401 ensures metadata sees job tables
 
 # Keep model imports above the router imports used by Alembic/runtime metadata.
+from app.services.follow_up_worker import run_follow_up_worker
 from app.services.transcription import build_provider, run_transcription_worker
 
 _transcription_task: asyncio.Task | None = None
+_follow_up_task: asyncio.Task | None = None
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Start the background transcription worker when the server boots."""
-    global _transcription_task
+    global _transcription_task, _follow_up_task
     provider = build_provider()
     _transcription_task = asyncio.create_task(
         run_transcription_worker(provider, poll_interval=2.0)
     )
+    _follow_up_task = asyncio.create_task(run_follow_up_worker(poll_interval=2.0))
     yield
-    # Shutdown: cancel the worker and let it finish cleanly.
-    if _transcription_task is not None:
-        _transcription_task.cancel()
-        try:
-            await _transcription_task
-        except asyncio.CancelledError:
-            pass
+    # Shutdown: cancel workers and let them finish cleanly.
+    for task in (_transcription_task, _follow_up_task):
+        if task is not None:
+            task.cancel()
+            try:
+                await task
+            except asyncio.CancelledError:
+                pass
 
 
 app = FastAPI(title="After Sunday API", lifespan=lifespan)

@@ -1,3 +1,4 @@
+import asyncio
 import uuid
 
 import pytest
@@ -7,8 +8,16 @@ from app.auth import get_current_user_uuid
 from app.db import get_db
 from app.main import app
 from app.services.follow_up import (
+    CHUNK_EXTRACT_PROMPT,
+    MAP_CONCURRENCY,
+    MAP_MAX_OUTPUT_TOKENS,
+    REDUCE_MAX_OUTPUT_TOKENS,
     SYSTEM_PROMPT,
+    OpenAICompatibleFollowUpProvider,
     _fix_takeaway_heading_count,
+    _limit_takeaways_to_three,
+    _parse_follow_up_output,
+    _parse_json_object,
     build_follow_up_prompt,
     detect_sermon_outline,
 )
@@ -48,6 +57,13 @@ def test_system_prompt_requires_longer_verse_rich_summary():
     assert "300–380" in SYSTEM_PROMPT
     assert "weave them" in SYSTEM_PROMPT
     assert "never guess or invent a citation" in SYSTEM_PROMPT
+
+
+def test_system_prompt_requires_three_substantive_takeaways():
+    assert "exactly three" in SYSTEM_PROMPT
+    assert "25–45 words" in SYSTEM_PROMPT
+    assert "thoughtful" in SYSTEM_PROMPT
+    assert "Never use a" in SYSTEM_PROMPT
 
 
 FOUR_POINT_TRANSCRIPT = (
@@ -122,6 +138,22 @@ def test_fix_takeaway_heading_count_leaves_matching_heading():
     assert _fix_takeaway_heading_count(body) == body
 
 
+def test_limit_takeaways_to_three_drops_extra_items():
+    body = (
+        "Four takeaways:\n\n"
+        "1. First thoughtful takeaway.\n"
+        "2. Second thoughtful takeaway.\n"
+        "3. Third thoughtful takeaway.\n"
+        "4. Extra takeaway that must be removed.\n\n"
+        "Reflection questions:\n\n1. Question?"
+    )
+    limited = _limit_takeaways_to_three(body)
+    assert "1. First thoughtful takeaway." in limited
+    assert "3. Third thoughtful takeaway." in limited
+    assert "4. Extra takeaway" not in limited
+    assert "Reflection questions:" in limited
+
+
 @pytest.fixture
 def client(db_session):
     def override_db():
@@ -179,3 +211,253 @@ def test_prompt_endpoint_requires_ready_transcript(client, db_session):
 def test_prompt_endpoint_404(client, db_session):
     response = client.get(f"/sermons/{uuid.uuid4()}/follow-up/prompt")
     assert response.status_code == 404
+
+
+def test_generation_logs_provider_error(client, db_session, monkeypatch, caplog):
+    import logging
+
+    class FailingProvider:
+        provider_name = "test"
+        model_name = "test-model"
+
+        async def generate(self, **kwargs):
+            raise RuntimeError("provider exploded")
+
+    monkeypatch.setattr(
+        "app.routers.sermons.build_follow_up_provider",
+        lambda: FailingProvider(),
+    )
+    caplog.set_level(logging.ERROR, logger="app.routers.sermons")
+
+    sermon_id = _create_ready_sermon(db_session)
+    response = client.post(f"/sermons/{sermon_id}/follow-up/generate")
+
+    assert response.status_code == 502
+    assert "provider exploded" in response.json()["detail"]
+    assert "Follow-up generation failed for sermon" in caplog.text
+    assert "RuntimeError" in caplog.text
+
+
+def test_chunk_prompt_requests_compact_plain_text_notes():
+    lowered = CHUNK_EXTRACT_PROMPT.lower()
+    assert "plain text" in lowered
+    assert "main themes" in lowered
+    assert "scripture" in lowered
+    assert "not json" in lowered
+
+
+async def _test_map_calls_are_bounded_and_ordered(monkeypatch):
+    import asyncio
+
+    active = 0
+    maximum = 0
+
+    async def fake_chat_text(self, client, system, user, *, max_tokens, temperature):
+        nonlocal active, maximum
+        assert max_tokens == MAP_MAX_OUTPUT_TOKENS
+        active += 1
+        maximum = max(maximum, active)
+        section = user.split(":", 1)[0]
+        await asyncio.sleep(0.01 if "section 2/4" in section else 0.02)
+        active -= 1
+        return section
+
+    monkeypatch.setattr(OpenAICompatibleFollowUpProvider, "_chat_text", fake_chat_text)
+    provider = OpenAICompatibleFollowUpProvider("key", "url", "model")
+    notes = await provider._map_transcript_chunks(
+        object(), ["one", "two", "three", "four"]
+    )
+
+    assert MAP_CONCURRENCY == 2
+    assert maximum == 2
+    assert notes == [
+        "Transcript section 1/4",
+        "Transcript section 2/4",
+        "Transcript section 3/4",
+        "Transcript section 4/4",
+    ]
+
+
+def test_map_calls_are_bounded_and_ordered(monkeypatch):
+    asyncio.run(_test_map_calls_are_bounded_and_ordered(monkeypatch))
+
+
+async def _test_long_generation_maps_every_chunk_then_reduces(monkeypatch):
+    calls = []
+
+    async def fake_chat_text(self, client, system, user, *, max_tokens, temperature):
+        calls.append({"stage": "map", "system": system, "user": user, "max_tokens": max_tokens})
+        return user.split(":", 1)[0] + " notes"
+
+    async def fake_chat_json(self, client, system, user, *, max_tokens, temperature):
+        calls.append({"stage": "reduce", "system": system, "user": user, "max_tokens": max_tokens})
+        return {
+            "subject": "A message to remember",
+            "body": "Three takeaways:\\n\\n1. One.\\n2. Two.\\n3. Three.",
+        }
+
+    monkeypatch.setattr(OpenAICompatibleFollowUpProvider, "_chat_text", fake_chat_text)
+    monkeypatch.setattr(OpenAICompatibleFollowUpProvider, "_chat_json", fake_chat_json)
+    monkeypatch.setattr(
+        "app.services.transcript_chunking.chunk_transcript",
+        lambda transcript: ["chunk one", "chunk two", "chunk three"],
+    )
+
+    provider = OpenAICompatibleFollowUpProvider("key", "url", "model")
+    result = await provider.generate(
+        title="A Long Sermon",
+        preacher="Tanner Gish",
+        scripture_reference="Habakkuk 1",
+        transcript="The sermon content. " * 2_000,
+    )
+
+    assert result["subject"] == "A message to remember"
+    assert len(calls) == 4
+    assert all(call["stage"] == "map" for call in calls[:3])
+    assert all(call["max_tokens"] == MAP_MAX_OUTPUT_TOKENS for call in calls[:3])
+    assert calls[-1]["stage"] == "reduce"
+    assert calls[-1]["max_tokens"] == REDUCE_MAX_OUTPUT_TOKENS
+    assert "Transcript section 1/3 notes" in calls[-1]["user"]
+    assert "Transcript section 2/3 notes" in calls[-1]["user"]
+    assert "Transcript section 3/3 notes" in calls[-1]["user"]
+    assert "Sermon digest from the full transcript" in calls[-1]["user"]
+
+
+def test_long_generation_maps_every_chunk_then_reduces(monkeypatch):
+    asyncio.run(_test_long_generation_maps_every_chunk_then_reduces(monkeypatch))
+
+
+def test_long_generation_is_enqueued_for_resume(client, db_session, monkeypatch):
+    class Provider:
+        provider_name = "openai_compatible"
+        model_name = "reduce-model"
+        map_model_name = "map-model"
+
+    monkeypatch.setattr(
+        "app.routers.sermons.build_follow_up_provider",
+        lambda: Provider(),
+    )
+    from app.models.sermon import Sermon
+
+    sermon_id = _create_ready_sermon(db_session)
+    sermon = db_session.get(Sermon, sermon_id)
+    sermon.transcript = "A sentence about the sermon. " * 900
+    db_session.commit()
+
+    response = client.post(f"/sermons/{sermon_id}/follow-up/generate")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["aiDraftStatus"] == "generating"
+    assert body["aiGenerationStatus"] == "queued"
+    assert body["aiGenerationTotalChunks"] >= 3
+    assert body["aiGenerationCompletedChunks"] == 0
+
+
+def test_long_prompt_endpoint_describes_map_reduce_without_llm(client, db_session):
+    from app.models.sermon import Sermon
+
+    sermon_id = _create_ready_sermon(db_session)
+    sermon = db_session.get(Sermon, sermon_id)
+    sermon.transcript = "A sentence about the sermon. " * 900
+    db_session.commit()
+
+    response = client.get(f"/sermons/{sermon_id}/follow-up/prompt")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["mode"] == "map_reduce"
+    assert "section of a sermon transcript" in body["mapPrompt"]
+    assert "Sermon digest from the full transcript" in body["reducePrompt"]
+    assert body["mapChunkSize"] == 8000
+    assert body["mapConcurrency"] == 2
+
+
+def test_parse_json_object_accepts_fenced_json():
+    content = '''```json
+{"notes": "hello"}
+```'''
+    assert _parse_json_object(content) == {"notes": "hello"}
+
+
+def test_parse_follow_up_output_accepts_delimiters():
+    content = """SUBJECT: A thought from Sunday
+BODY:
+A warm pastoral email."""
+    assert _parse_follow_up_output(content) == {
+        "subject": "A thought from Sunday",
+        "body": "A warm pastoral email.",
+    }
+
+
+def test_compound_request_omits_gpt_reasoning_parameter():
+    kwargs = OpenAICompatibleFollowUpProvider._completion_kwargs(
+        model="groq/compound",
+        system="system",
+        user="user",
+        max_tokens=800,
+        temperature=0.2,
+        reasoning_effort="low",
+    )
+    assert "reasoning_effort" not in kwargs
+
+
+async def _test_chat_json_makes_one_request(monkeypatch):
+    calls = []
+
+    class FakeCompletions:
+        async def create(self, **kwargs):
+            calls.append(kwargs)
+            return type(
+                "Response",
+                (),
+                {
+                    "choices": [
+                        type(
+                            "Choice",
+                            (),
+                            {
+                                "message": type(
+                                    "Message",
+                                    (),
+                                    {"content": '{"notes":"one call"}'},
+                                )(),
+                            },
+                        )(),
+                    ],
+                },
+            )()
+
+    class FakeClient:
+        chat = type("Chat", (), {"completions": FakeCompletions()})()
+
+    provider = OpenAICompatibleFollowUpProvider(
+        "key", "url", "openai/gpt-oss-20b"
+    )
+    result = await provider._chat_json(
+        FakeClient(), "system", "user", max_tokens=250, temperature=0.2
+    )
+
+    assert result == {"notes": "one call"}
+    assert len(calls) == 1
+    assert calls[0]["max_completion_tokens"] == 250
+    assert calls[0]["reasoning_effort"] == "low"
+    assert "response_format" not in calls[0]
+
+
+def test_chat_json_makes_one_request(monkeypatch):
+    asyncio.run(_test_chat_json_makes_one_request(monkeypatch))
+
+
+async def _test_map_failure_includes_section_context(monkeypatch):
+    async def fake_chat_text(self, client, system, user, *, max_tokens, temperature):
+        if "section 2/3" in user:
+            raise RuntimeError("429 quota exceeded")
+        return "ok"
+
+    monkeypatch.setattr(OpenAICompatibleFollowUpProvider, "_chat_text", fake_chat_text)
+    provider = OpenAICompatibleFollowUpProvider("key", "url", "model")
+    with pytest.raises(RuntimeError, match="section 2/3.*429 quota exceeded"):
+        await provider._map_transcript_chunks(object(), ["one", "two", "three"])
+
+
+def test_map_failure_includes_section_context(monkeypatch):
+    asyncio.run(_test_map_failure_includes_section_context(monkeypatch))

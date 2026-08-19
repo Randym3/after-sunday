@@ -116,6 +116,10 @@ class SermonRead(BaseModel):
     ai_draft_status: str
     ai_provider: str | None
     ai_model: str | None
+    ai_generation_status: str
+    ai_generation_total_chunks: int | None
+    ai_generation_completed_chunks: int | None
+    ai_generation_error: str | None
     email_status: str
     created_at: datetime
     updated_at: datetime

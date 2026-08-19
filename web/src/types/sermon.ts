@@ -41,6 +41,10 @@ export interface Sermon {
   aiDraftStatus: AiDraftStatus;
   aiProvider?: string | null;
   aiModel?: string | null;
+  aiGenerationStatus?: "idle" | "queued" | "processing" | "failed" | "completed";
+  aiGenerationTotalChunks?: number | null;
+  aiGenerationCompletedChunks?: number | null;
+  aiGenerationError?: string | null;
   emailStatus: EmailStatus;
 }
 

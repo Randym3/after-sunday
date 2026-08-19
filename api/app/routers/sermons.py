@@ -1,3 +1,5 @@
+import json
+import logging
 import uuid
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile
@@ -7,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.auth import get_current_user_uuid
 from app.db import get_db
+from app.models.follow_up_job import FollowUpJob
 from app.models.member import Member
 from app.models.sermon import Sermon
 from app.models.transcription_job import TranscriptionJob
@@ -21,13 +24,19 @@ from app.schemas.sermon import (
 from app.services.branding import get_logo_data_uri, get_organization_name
 from app.services.email import resolve_email_config, send_test_email
 from app.services.follow_up import (
+    CHUNK_EXTRACT_PROMPT,
+    MAP_CONCURRENCY,
     build_follow_up_prompt,
     build_follow_up_provider,
+    build_follow_up_reduce_prompt,
+    detect_sermon_outline,
 )
+from app.services.transcript_chunking import MAP_CHUNK_SIZE, chunk_transcript
 from app.services.transcription import build_provider
 from app.services.youtube import apply_youtube_source
 from app.storage import get_storage
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/sermons", tags=["sermons"])
 
 
@@ -145,6 +154,55 @@ async def generate_follow_up(
         )
 
     provider = build_follow_up_provider()
+
+    # Long transcripts are resumable background jobs. Each completed map
+    # section is persisted, so a quota or provider failure does not discard
+    # the work already paid for; clicking Generate again resumes missing work.
+    if len(sermon.transcript) > 16_000:
+        chunks = chunk_transcript(sermon.transcript)
+        job = db.scalars(
+            select(FollowUpJob).where(FollowUpJob.sermon_id == sermon.id)
+        ).first()
+        if job is not None and job.status in {"queued", "processing"}:
+            return sermon
+
+        if job is None:
+            job = FollowUpJob(sermon_id=sermon.id, provider=provider.provider_name)
+            db.add(job)
+        elif job.status == "completed":
+            # A deliberate new generation starts a fresh run. Failed jobs keep
+            # notes_json so the next attempt resumes only missing sections.
+            job.notes_json = None
+            job.completed_chunks = 0
+
+        job.provider = provider.provider_name
+        job.map_model = getattr(provider, "map_model_name", provider.model_name)
+        job.reduce_model = provider.model_name
+        job.status = "queued"
+        job.total_chunks = len(chunks)
+        job.error_message = None
+        job.completed_at = None
+
+        try:
+            existing_notes = json.loads(job.notes_json) if job.notes_json else []
+        except json.JSONDecodeError:
+            existing_notes = []
+        if not isinstance(existing_notes, list) or len(existing_notes) != len(chunks):
+            existing_notes = [None] * len(chunks)
+        job.completed_chunks = sum(bool(note) for note in existing_notes)
+        job.notes_json = json.dumps(existing_notes)
+
+        sermon.ai_draft_status = "generating"
+        sermon.ai_provider = provider.provider_name
+        sermon.ai_model = provider.model_name
+        sermon.ai_generation_status = "queued"
+        sermon.ai_generation_total_chunks = len(chunks)
+        sermon.ai_generation_completed_chunks = job.completed_chunks
+        sermon.ai_generation_error = None
+        db.commit()
+        db.refresh(sermon)
+        return sermon
+
     try:
         draft = await provider.generate(
             title=sermon.title,
@@ -153,6 +211,11 @@ async def generate_follow_up(
             transcript=sermon.transcript,
         )
     except Exception as exc:
+        logger.exception(
+            "Follow-up generation failed for sermon %s (%s)",
+            sermon_id,
+            type(exc).__name__,
+        )
         raise HTTPException(
             status_code=502,
             detail=f"Follow-up generation failed: {exc}",
@@ -163,6 +226,10 @@ async def generate_follow_up(
     sermon.ai_draft_status = "draft_ready"
     sermon.ai_provider = provider.provider_name
     sermon.ai_model = provider.model_name
+    sermon.ai_generation_status = "completed"
+    sermon.ai_generation_total_chunks = None
+    sermon.ai_generation_completed_chunks = None
+    sermon.ai_generation_error = None
     sermon.email_status = "draft"
     db.commit()
     db.refresh(sermon)
@@ -192,13 +259,34 @@ def get_follow_up_prompt(
             detail="A reviewed transcript is required before a prompt can be built.",
         )
 
-    prompt = build_follow_up_prompt(
+    if len(sermon.transcript) <= 16_000:
+        prompt = build_follow_up_prompt(
+            title=sermon.title,
+            preacher=sermon.preacher,
+            scripture_reference=sermon.scripture_reference,
+            transcript=sermon.transcript,
+        )
+        return {"systemPrompt": prompt["system"], "userPrompt": prompt["user"]}
+
+    reduce_prompt = build_follow_up_reduce_prompt(
         title=sermon.title,
         preacher=sermon.preacher,
         scripture_reference=sermon.scripture_reference,
-        transcript=sermon.transcript,
+        outline=detect_sermon_outline(sermon.transcript),
+        digest=(
+            "[Chunk notes are produced during generation; this endpoint does "
+            "not call the LLM.]"
+        ),
     )
-    return {"systemPrompt": prompt["system"], "userPrompt": prompt["user"]}
+    return {
+        "systemPrompt": reduce_prompt["system"],
+        "userPrompt": reduce_prompt["user"],
+        "mode": "map_reduce",
+        "mapPrompt": CHUNK_EXTRACT_PROMPT,
+        "reducePrompt": reduce_prompt["user"],
+        "mapChunkSize": MAP_CHUNK_SIZE,
+        "mapConcurrency": MAP_CONCURRENCY,
+    }
 
 
 @router.post("/{sermon_id}/test-email")
