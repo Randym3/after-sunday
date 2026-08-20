@@ -17,3 +17,17 @@ export function previewYoutubeVideo(url: string): Promise<YoutubePreview> {
     body: JSON.stringify({ url }),
   });
 }
+
+export interface YoutubeTranscriptImport {
+  videoId: string;
+  transcript: string;
+}
+
+export function importYoutubeTranscript(
+  url: string,
+): Promise<YoutubeTranscriptImport> {
+  return apiFetch<YoutubeTranscriptImport>("/youtube/transcript", {
+    method: "POST",
+    body: JSON.stringify({ url }),
+  });
+}

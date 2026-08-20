@@ -175,14 +175,19 @@ def queue_youtube_caption_import(db: Session, sermon: Sermon) -> TranscriptionJo
     return job
 
 
-def apply_youtube_source(db: Session, sermon: Sermon, url: str) -> None:
-    """Resolve the video id from *url* and queue caption import.
-
-    Raises ValueError when the URL is not a YouTube video URL.
-    """
+def set_youtube_source_metadata(sermon: Sermon, url: str) -> None:
+    """Store the YouTube identity without starting a caption job."""
     video_id = parse_youtube_video_id(url)
     if not video_id:
         raise ValueError("That doesn't look like a YouTube video URL.")
     sermon.youtube_video_id = video_id
     sermon.youtube_fetched_at = datetime.now(timezone.utc)
+
+
+def apply_youtube_source(db: Session, sermon: Sermon, url: str) -> None:
+    """Resolve the video id from *url* and queue caption import.
+
+    Raises ValueError when the URL is not a YouTube video URL.
+    """
+    set_youtube_source_metadata(sermon, url)
     queue_youtube_caption_import(db, sermon)

@@ -110,8 +110,12 @@ Status: complete (2026-08-15).
 - paste a YouTube URL → `POST /youtube/preview` fetches public metadata
   (title, upload date, channel, thumbnail, description, scripture reference)
   and the create form prefills empty fields + shows a preview card
-- auto-captions are imported through the existing `transcription_jobs`
-  worker (`provider="youtube_captions"`) — no storage or transcription cost
+- **Import transcript** can be triggered before creation through
+  `POST /youtube/transcript`; the imported transcript is submitted with the
+  sermon so the background worker does not fetch it a second time
+- if pre-import is skipped, auto-captions are imported through the existing
+  `transcription_jobs` worker (`provider="youtube_captions"`) — no storage or
+  transcription cost
 - `api/scripts/import_youtube_archive.py` bulk-imports a channel
   (`--channel URL [--limit N] [--dry-run] [--user-id UUID]`), deduping on
   `youtube_video_id`

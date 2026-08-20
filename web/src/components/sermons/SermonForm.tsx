@@ -10,8 +10,12 @@ import {
 import { MediaUploader } from "@/components/sermons/MediaUploader";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
+import { useToast } from "@/components/ui/Toast";
 import { listMembers } from "@/lib/api/members";
-import type { YoutubePreview } from "@/lib/api/youtube";
+import {
+  importYoutubeTranscript,
+  type YoutubePreview,
+} from "@/lib/api/youtube";
 import { cn } from "@/lib/utils/cn";
 import type { Member } from "@/types/member";
 import {
@@ -159,6 +163,13 @@ export function SermonForm({
   isUploadInProgress = false,
   onTranscribe,
 }: SermonFormProps) {
+  const { toast } = useToast();
+  const [youtubeTranscriptImport, setYoutubeTranscriptImport] = useState<{
+    status: "idle" | "loading" | "ready" | "error";
+    url: string | null;
+    error: string | null;
+  }>({ status: "idle", url: null, error: null });
+
   const isEdit = Boolean(sermon);
   const isTranscribing =
     !isEdit && transcribingTranscript === null;
@@ -350,6 +361,19 @@ export function SermonForm({
   // assignment firing a second change event for the same file.
   const processedFileRef = useRef<File | null>(null);
   const mediaFileInputRef = useRef<HTMLInputElement>(null);
+  const currentYoutubeUrl = values.youtubeUrl?.trim() ?? "";
+  const hasImportedYoutubeTranscript =
+    youtubeTranscriptImport.status === "ready" &&
+    youtubeTranscriptImport.url === currentYoutubeUrl;
+  const isYoutubeTranscriptImporting =
+    youtubeTranscriptImport.status === "loading" &&
+    youtubeTranscriptImport.url === currentYoutubeUrl;
+  const youtubeTranscriptError =
+    youtubeTranscriptImport.url === currentYoutubeUrl
+      ? youtubeTranscriptImport.error
+      : null;
+  const isTranscriptLoading =
+    isTranscribing || isYoutubeTranscriptImporting;
 
   // When a YouTube URL is pasted, fetch metadata and prefill empty fields.
   // All state updates happen inside the timeout callback (never synchronously
@@ -518,6 +542,33 @@ export function SermonForm({
       ...currentValues,
       [field]: value,
     }));
+  }
+
+  async function handleImportYoutubeTranscript() {
+    const url = values.youtubeUrl?.trim() ?? "";
+    if (!url || isYoutubeTranscriptImporting || hasImportedYoutubeTranscript) {
+      return;
+    }
+
+    setYoutubeTranscriptImport({ status: "loading", url, error: null });
+
+    try {
+      const result = await importYoutubeTranscript(url);
+      setValues((currentValues) => ({
+        ...currentValues,
+        transcript: result.transcript,
+      }));
+      setTranscriptEdited(true);
+      setYoutubeTranscriptImport({ status: "ready", url, error: null });
+      toast("YouTube transcript imported. Review it before creating the sermon.", "success");
+    } catch (error) {
+      const message =
+        error instanceof Error
+          ? error.message
+          : "Could not import the YouTube transcript.";
+      setYoutubeTranscriptImport({ status: "error", url, error: message });
+      toast(message, "error");
+    }
   }
 
   function selectSource(sourceType: SermonSourceType) {
@@ -1121,9 +1172,50 @@ export function SermonForm({
               />
 
               <p className="mt-2 text-xs leading-5 text-ink-soft">
-                We&apos;ll pull the title and date from the video, then fetch
-                the transcript automatically.
+                We&apos;ll pull the title and date from the video. Import its
+                transcript here before creating the sermon.
               </p>
+
+              <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-edge bg-panel-2 p-4 sm:flex-row sm:items-center sm:justify-between">
+                <div>
+                  <p className="text-sm font-semibold text-ink">
+                    Import a transcript
+                  </p>
+                  <p className="mt-1 text-xs leading-5 text-ink-soft">
+                    Use YouTube&apos;s available captions instead of waiting for
+                    transcription after creation.
+                  </p>
+                </div>
+
+                {hasImportedYoutubeTranscript ? (
+                  <span className="shrink-0 text-xs font-semibold text-mint">
+                    Transcript imported
+                  </span>
+                ) : (
+                  <button
+                    type="button"
+                    onClick={handleImportYoutubeTranscript}
+                    disabled={!currentYoutubeUrl || isYoutubeTranscriptImporting}
+                    className="inline-flex shrink-0 items-center justify-center gap-2 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white transition hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
+                  >
+                    {isYoutubeTranscriptImporting ? (
+                      <span
+                        aria-hidden="true"
+                        className="h-3.5 w-3.5 animate-spin rounded-full border-2 border-white/30 border-r-white border-t-white"
+                      />
+                    ) : null}
+                    {isYoutubeTranscriptImporting
+                      ? "Importing…"
+                      : "Import transcript"}
+                  </button>
+                )}
+              </div>
+
+              {youtubeTranscriptError ? (
+                <p role="status" className="mt-2 text-xs font-medium text-red-400">
+                  {youtubeTranscriptError}
+                </p>
+              ) : null}
 
               {youtubePreview.loading ? (
                 <p
@@ -1196,12 +1288,14 @@ export function SermonForm({
   <p className="mt-2 text-sm leading-6 text-ink-soft">
     {values.sourceType === "transcript"
       ? "Paste the completed sermon transcript below."
-      : isTranscribing || isEditTranscribing
-        ? "Your recording is being transcribed now. The text will appear here automatically."
-        : "Paste an existing transcript to skip automatic transcription. You can review and edit it after creating the sermon."}
+      : isYoutubeTranscriptImporting
+        ? "The YouTube transcript is being imported now. It will appear here automatically."
+        : isTranscribing || isEditTranscribing
+          ? "Your recording is being transcribed now. The text will appear here automatically."
+          : "Paste an existing transcript to skip automatic transcription. You can review and edit it after creating the sermon."}
   </p>
 
-  {isTranscribing ? (
+  {isTranscriptLoading ? (
     <div className="relative mt-3">
       <div className="min-h-64 w-full rounded-2xl border border-edge bg-panel-2 px-4 py-3 text-sm leading-6 text-ink-soft outline-none" />
       <div className="pointer-events-none absolute inset-0 flex items-center justify-center">
@@ -1216,7 +1310,9 @@ export function SermonForm({
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z" />
           </svg>
           <span className="text-sm font-medium text-primary">
-            Transcribing your recording…
+            {isYoutubeTranscriptImporting
+              ? "Importing YouTube transcript…"
+              : "Transcribing your recording…"}
           </span>
         </div>
       </div>
@@ -1259,7 +1355,7 @@ export function SermonForm({
     <p>
       {autoTranscript
         ? "Your recording has been transcribed. Review and edit as needed."
-        : isTranscribing || isEditTranscribing
+        : isTranscriptLoading || isEditTranscribing
           ? "Transcription is running — it will appear above when ready."
           : values.sourceType === "transcript"
             ? "A transcript is required for this source."

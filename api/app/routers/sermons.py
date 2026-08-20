@@ -25,7 +25,10 @@ from app.services.follow_up import (
     build_follow_up_provider,
 )
 from app.services.transcription import build_provider
-from app.services.youtube import apply_youtube_source
+from app.services.youtube import (
+    apply_youtube_source,
+    set_youtube_source_metadata,
+)
 from app.storage import get_storage
 
 router = APIRouter(prefix="/sermons", tags=["sermons"])
@@ -66,20 +69,23 @@ def create_sermon(
     db.add(sermon)
     db.flush()
 
-    # YouTube sermons get their captions imported in the background; skip
-    # when the user already supplied a transcript.
-    if (
-        payload.source_type == "youtube"
-        and not (payload.transcript and payload.transcript.strip())
-    ):
+    # Always persist the YouTube identity. Only queue the background caption
+    # worker when the user did not import captions before creating the sermon.
+    if payload.source_type == "youtube":
         if not payload.youtube_url:
             raise HTTPException(
                 status_code=422, detail="A YouTube URL is required."
             )
         try:
-            apply_youtube_source(db, sermon, payload.youtube_url)
+            set_youtube_source_metadata(sermon, payload.youtube_url)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        if not (payload.transcript and payload.transcript.strip()):
+            try:
+                apply_youtube_source(db, sermon, payload.youtube_url)
+            except ValueError as exc:
+                raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     db.commit()
     db.refresh(sermon)

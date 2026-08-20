@@ -5,6 +5,7 @@ from app.services.youtube import (
     detect_scripture_reference,
     fetch_auto_captions,
     parse_youtube_video_id,
+    set_youtube_source_metadata,
 )
 
 
@@ -58,6 +59,28 @@ def test_detect_scripture_reference():
     assert detect_scripture_reference("1 John 1:9 sermon") == "1 John 1:9"
     assert detect_scripture_reference("Church announcements and testimonies") is None
     assert detect_scripture_reference("") is None
+
+
+def test_set_youtube_source_metadata_does_not_create_a_caption_job(db_session):
+    from app.models.sermon import Sermon
+    from app.models.transcription_job import TranscriptionJob
+
+    sermon = Sermon(
+        created_by_user_id=uuid.uuid4(),
+        title="Imported captions",
+        source_type="youtube",
+    )
+    db_session.add(sermon)
+    db_session.flush()
+
+    set_youtube_source_metadata(
+        sermon,
+        "https://www.youtube.com/watch?v=dQw4w9WgXcQ",
+    )
+    db_session.commit()
+
+    assert sermon.youtube_video_id == "dQw4w9WgXcQ"
+    assert db_session.query(TranscriptionJob).count() == 0
 
 
 def test_sermon_read_includes_youtube_fields(db_session):

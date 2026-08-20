@@ -8,7 +8,11 @@ from pydantic import BaseModel, ConfigDict
 
 from app.auth import get_current_user_uuid
 from app.schemas.aliases import to_camel
-from app.services.youtube import fetch_video_metadata, parse_youtube_video_id
+from app.services.youtube import (
+    fetch_auto_captions,
+    fetch_video_metadata,
+    parse_youtube_video_id,
+)
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
 
@@ -32,6 +36,13 @@ class YoutubePreviewRead(BaseModel):
     scripture_reference: str | None
 
 
+class YoutubeTranscriptRead(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    video_id: str
+    transcript: str
+
+
 @router.post("/preview", response_model=YoutubePreviewRead)
 def preview_youtube_video(
     payload: YoutubePreviewRequest,
@@ -50,3 +61,23 @@ def preview_youtube_video(
             detail="Could not load that video — check the URL and try again.",
         ) from exc
     return YoutubePreviewRead(**asdict(meta))
+
+
+@router.post("/transcript", response_model=YoutubeTranscriptRead)
+async def import_youtube_transcript(
+    payload: YoutubePreviewRequest,
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+):
+    """Fetch YouTube captions before a sermon row is created."""
+    video_id = parse_youtube_video_id(payload.url)
+    if not video_id:
+        raise HTTPException(
+            status_code=422, detail="That doesn't look like a YouTube video URL."
+        )
+
+    try:
+        transcript = await fetch_auto_captions(video_id)
+    except RuntimeError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+    return YoutubeTranscriptRead(video_id=video_id, transcript=transcript)
