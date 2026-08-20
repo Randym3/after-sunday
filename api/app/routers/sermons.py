@@ -33,6 +33,22 @@ from app.storage import get_storage
 
 router = APIRouter(prefix="/sermons", tags=["sermons"])
 
+# Temporary product switch: keep the complete upload/transcription pipeline
+# in place, but reject new recording uploads while YouTube and pasted
+# transcripts are the active sermon sources.
+RECORDING_UPLOADS_ENABLED = False
+RECORDING_UPLOADS_DISABLED_DETAIL = (
+    "Recording uploads are temporarily disabled. Use YouTube or paste a transcript instead."
+)
+
+
+def _require_recording_uploads_enabled() -> None:
+    if not RECORDING_UPLOADS_ENABLED:
+        raise HTTPException(
+            status_code=503,
+            detail=RECORDING_UPLOADS_DISABLED_DETAIL,
+        )
+
 
 def _get_sermon_or_404(db: Session, sermon_id: uuid.UUID) -> Sermon:
     sermon = db.get(Sermon, sermon_id)
@@ -47,6 +63,9 @@ def create_sermon(
     db: Session = Depends(get_db),
     user_id: uuid.UUID = Depends(get_current_user_uuid),
 ):
+    if payload.source_type == "upload":
+        _require_recording_uploads_enabled()
+
     # Determine initial transcript status.
     if payload.transcript and payload.transcript.strip():
         initial_status = "ready"
@@ -420,6 +439,7 @@ def upload_init(
     _user: uuid.UUID = Depends(get_current_user_uuid),
 ) -> dict:
     """Create the storage record and return an upload ID."""
+    _require_recording_uploads_enabled()
     sermon = _get_sermon_or_404(db, sermon_id)
 
     if file_size > MAX_FILE_SIZE:
@@ -469,6 +489,7 @@ async def upload_chunk(
     _user: uuid.UUID = Depends(get_current_user_uuid),
 ) -> dict:
     """Write one chunk to storage. Client sends the raw chunk as the file."""
+    _require_recording_uploads_enabled()
     sermon = _get_sermon_or_404(db, sermon_id)
 
     if sermon.media_storage_key != storage_key:
@@ -495,6 +516,7 @@ def upload_complete(
     _user: uuid.UUID = Depends(get_current_user_uuid),
 ) -> SermonRead:
     """Mark the upload as done and queue transcription."""
+    _require_recording_uploads_enabled()
     sermon = _get_sermon_or_404(db, sermon_id)
 
     if not sermon.media_storage_key:

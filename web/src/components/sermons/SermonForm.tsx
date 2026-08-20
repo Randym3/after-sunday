@@ -62,18 +62,24 @@ interface SermonFormProps {
   onTranscribe?: () => void | Promise<void>;
 }
 
+// Temporary product switch: keep the recording implementation intact, but
+// make it inaccessible while YouTube and pasted transcripts are the active
+// sermon sources. Re-enable only when the hosting/storage plan is ready.
+const RECORDING_UPLOADS_ENABLED = false;
+
 const sourceOptions: Array<{
   value: SermonSourceType;
   title: string;
   description: string;
   badge?: string;
+  disabled?: boolean;
 }> = [
   {
     value: "upload",
     title: "Upload recording",
     description:
-      "Upload an audio or video recording and After Sunday will prepare the transcript.",
-    badge: "Recommended",
+      "Temporarily unavailable. Use YouTube or paste a transcript instead.",
+    disabled: !RECORDING_UPLOADS_ENABLED,
   },
   {
     value: "youtube",
@@ -270,7 +276,7 @@ export function SermonForm({
     preacher: sermon?.preacher ?? "",
     scriptureReference: sermon?.scriptureReference ?? "",
     preachedAt: sermon?.preachedAt ?? "",
-    sourceType: (sermon?.sourceType as SermonSourceType) ?? "upload",
+    sourceType: (sermon?.sourceType as SermonSourceType) ?? "youtube",
     youtubeUrl: sermon?.sourceUrl ?? "",
     transcript: sermon?.transcript ?? "",
   }));
@@ -532,6 +538,7 @@ export function SermonForm({
 
   const { isDraggingFile } = useRecordingFileDrop({
     onFileDropped: handleFileDropped,
+    enabled: RECORDING_UPLOADS_ENABLED,
   });
 
   function updateField<K extends keyof CreateSermonInput>(
@@ -572,6 +579,10 @@ export function SermonForm({
   }
 
   function selectSource(sourceType: SermonSourceType) {
+    if (sourceType === "upload") {
+      return;
+    }
+
     setValues((currentValues) => ({
       ...currentValues,
       sourceType,
@@ -1019,10 +1030,14 @@ export function SermonForm({
                   <label
                     key={option.value}
                     className={cn(
-                      "relative cursor-pointer rounded-3xl border p-5 transition",
-                      isSelected
-                        ? "border-primary bg-primary/10 shadow-sm"
-                        : "border-edge bg-panel-2 hover:border-edge"
+                      "relative rounded-3xl border p-5 transition",
+                      option.disabled
+                        ? "cursor-not-allowed border-edge bg-panel opacity-60"
+                        : "cursor-pointer",
+                      !option.disabled &&
+                        (isSelected
+                          ? "border-primary bg-primary/10 shadow-sm"
+                          : "border-edge bg-panel-2 hover:border-edge")
                     )}
                   >
                     <input
@@ -1030,9 +1045,8 @@ export function SermonForm({
                       name="sourceType"
                       value={option.value}
                       checked={isSelected}
-                      onChange={() =>
-                        selectSource(option.value)
-                      }
+                      onChange={() => selectSource(option.value)}
+                      disabled={option.disabled}
                       className="sr-only"
                     />
 
@@ -1080,15 +1094,14 @@ export function SermonForm({
 
               <label
                 htmlFor="mediaFile"
-                className="mt-2 flex min-h-44 cursor-pointer flex-col items-center justify-center rounded-3xl border border-dashed border-edge bg-panel-2 px-6 py-8 text-center transition hover:border-primary hover:bg-primary/5"
+                className="mt-2 flex min-h-44 cursor-not-allowed flex-col items-center justify-center rounded-3xl border border-dashed border-edge bg-panel-2 px-6 py-8 text-center opacity-60"
               >
                 <span className="text-sm font-semibold text-ink">
                   Choose a sermon recording
                 </span>
 
                 <span className="mt-2 max-w-md text-sm leading-6 text-ink-soft">
-                  Select an MP3, M4A, WAV, MP4, or WebM file.
-                  Transcription starts immediately after upload.
+                  Recording uploads are temporarily disabled. Use YouTube or paste a transcript instead.
                 </span>
 
                 {mediaFile ? (
@@ -1113,6 +1126,7 @@ export function SermonForm({
                 ref={mediaFileInputRef}
                 type="file"
                 accept=".mp3,.m4a,.wav,.mp4,.webm,audio/*,video/*"
+                disabled={!RECORDING_UPLOADS_ENABLED}
                 onChange={(event) => {
                   const pickedFile =
                     event.target.files?.[0] ?? null;
@@ -1129,9 +1143,8 @@ export function SermonForm({
               />
 
               <p className="mt-2 text-xs leading-5 text-ink-soft">
-                Tip: drag a recording anywhere on this page.
-                Upload and transcription start immediately so
-                you can fill out the rest while it runs.
+                Recording uploads are currently unavailable. You can add a
+                YouTube sermon or paste its transcript instead.
               </p>
 
               {dragDropNotice ? (

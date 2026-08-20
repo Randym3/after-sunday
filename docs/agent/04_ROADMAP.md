@@ -13,7 +13,7 @@ Status: complete.
 
 Status: complete.
 
-- Upload Recording
+- Upload Recording (implemented; temporarily disabled in the new-sermon UI)
 - YouTube
 - Paste Transcript
 - optional transcript for Upload/YouTube

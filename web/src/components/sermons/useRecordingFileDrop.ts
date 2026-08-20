@@ -24,6 +24,8 @@ export function isAcceptedRecordingFile(file: File) {
 interface UseRecordingFileDropOptions {
   /** Called with the first dropped file whenever a file is released anywhere on the page. */
   onFileDropped: (file: File) => void;
+  /** Disable the global drop target when recording uploads are unavailable. */
+  enabled?: boolean;
 }
 
 /**
@@ -32,10 +34,15 @@ interface UseRecordingFileDropOptions {
  */
 export function useRecordingFileDrop({
   onFileDropped,
+  enabled = true,
 }: UseRecordingFileDropOptions) {
   const [isDraggingFile, setIsDraggingFile] = useState(false);
 
   useEffect(() => {
+    if (!enabled) {
+      return;
+    }
+
     function hasFiles(event: DragEvent) {
       return Array.from(event.dataTransfer?.types ?? []).includes(
         "Files"
@@ -113,7 +120,7 @@ export function useRecordingFileDrop({
       window.removeEventListener("drop", handleDrop);
       window.removeEventListener("keydown", handleKeyDown);
     };
-  }, [onFileDropped]);
+  }, [enabled, onFileDropped]);
 
-  return { isDraggingFile };
+  return { isDraggingFile: enabled && isDraggingFile };
 }

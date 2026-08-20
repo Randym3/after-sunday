@@ -114,7 +114,7 @@ Defined in `web/src/types/sermon.ts` exactly as above.
 
 ### Source types
 
-- **Upload recording**: drop-zone or file picker (MP3/M4A/WAV/MP4/WebM). Dragging a file anywhere on the page shows a full-screen "Drop to add your recording" overlay (`useRecordingFileDrop.ts`); releasing attaches it and auto-selects Upload.
+- **Upload recording**: the MP3/M4A/WAV/MP4/WebM upload implementation remains available for existing upload-based sermons, but the source is currently disabled in the new-sermon UI. New sermons use YouTube or Paste transcript. The former drop-zone/file-picker flow is preserved in code for later reactivation.
   - **Auto-fill on drop/pick (create mode only)**: empty Sermon title is filled from the file name (extension stripped, `_`/`-` → spaces); empty Date preached is filled from the file's creation date (`File.lastModified`). Both fields briefly flash `bg-green-50` (quick fade in/out) so the user sees what was filled, and a notice mentions "Title and date were prefilled from the file."
 - **YouTube**: paste a URL — `POST /youtube/preview` prefills empty
   title/date/scripture from the video's public metadata and shows a
