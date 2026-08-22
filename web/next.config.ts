@@ -1,7 +1,9 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  /* config options here */
+  // Standalone output lets the production container run `next start`
+  // without shipping node_modules (see web/Dockerfile).
+  output: "standalone",
 };
 
 export default nextConfig;

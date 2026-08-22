@@ -35,6 +35,9 @@ class Settings(BaseSettings):
     # Where the local-disk storage backend keeps uploaded files, relative to
     # the api/ directory. Production swaps in S3/R2 behind the same backend.
     storage_root: str = "storage"
+    # Origin of the frontend web app, used for CORS. Defaults to the local
+    # dev server; production sets this to the public HTTPS origin.
+    web_origin: str = "http://localhost:3000"
 
 
 @lru_cache

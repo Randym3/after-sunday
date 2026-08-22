@@ -37,3 +37,6 @@ pnpm-debug.log*
 # Freebuff desktop local state
 .freebuff/
 api/storage/
+
+# local database dumps before VM migration
+backups/

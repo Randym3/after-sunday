@@ -233,9 +233,23 @@ DELETE /groups/{id}/members    -> remove members
 
 `.env.example` lives at the repository root. The actual env files are `web/.env` and `web/.env.local` (both gitignored), containing `NEXT_PUBLIC_API_URL`, `NEXT_PUBLIC_SUPABASE_URL`, and `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`. Note: `web/.env` historically held a `sb_secret_…` service-role key in the publishable-key slot; `.env.local` overrides it at runtime. A secret in a `NEXT_PUBLIC_` slot is dangerous if that file is ever committed — remove it.
 
+## Production Deployment (Oracle VM)
+
+Containerization and production routing are implemented and verified locally (2026-08-21); the VM itself is not yet provisioned.
+
+- `api/Dockerfile` (python:3.12-slim, uvicorn; the transcription worker runs in-process via the app lifespan, so one container is the always-on worker) and `web/Dockerfile` (node:22-alpine multi-stage, Next.js **standalone** output — `output: "standalone"` added to `web/next.config.ts`). Both images build locally.
+- `docker-compose.production.yml` at the repo root: `caddy` (only published ports 80/443), `web`, `api`, and private `db` (postgres:16-alpine). Persistent data on the block volume via bind mounts at `/opt/after-sunday-data/{postgres,storage}`. Healthchecks + conservative resource limits.
+- `deploy/Caddyfile` (HTTPS via Caddy, `/api/*` prefix stripped → `api:8000`, `/media/*` → api, everything else → `web:3000`), `deploy/.env.production.example` (placeholders only; the web image also needs `NEXT_PUBLIC_SUPABASE_URL`/`NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY` as build args since they are inlined at build time).
+- `api/app/config.py` gained `web_origin` (default `http://localhost:3000`); `main.py` CORS now uses it. Covered by `api/tests/test_config.py`.
+- `deploy/scripts/`: `backup-local-db.sh`, `restore-production-db.sh`, `backup-production-db.sh`, `update-production.sh`, `rollback-production.sh`. Local dumps go to `backups/` (gitignored).
+- Runbooks: `docs/operations/oracle-vm.md` (provision/deploy/backup/update/rollback/recovery) and `docs/operations/oracle-vm-smoke-test.md`.
+- Verified: `docker build` for both images, `docker compose config` renders, `npm run lint`/`npm run build` pass, API tests pass.
+
+Not done here: OCI provisioning (console), DNS, ingress rules, secrets, local→VM database dump/restore, first deploy, Supabase URL config, hosted smoke tests.
+
 ## Lint / Build Status
 
-`npm run lint` and `npm run build` both pass as of 2026-08-10.
+`npm run lint` and `npm run build` both pass as of 2026-08-21.
 
 ## Still Mocked
 

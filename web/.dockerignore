@@ -1,0 +1,12 @@
+node_modules
+.next
+.env
+.env.*
+!.env.example
+.git
+storage
+__pycache__
+.venv
+tests
+tsconfig.tsbuildinfo
+.DS_Store

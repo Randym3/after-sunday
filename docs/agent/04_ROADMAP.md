@@ -144,7 +144,20 @@ Status: test-email slice implemented (2026-08-14); campaign delivery remains pen
 - recipient validation for campaign sends
 - send status and error handling for campaign delivery
 
-## Phase 11 — SaaS Expansion
+## Phase 11 — Oracle Always Free VM Hosting
+
+Status: containerization and production routing implemented (2026-08-21); VM provisioning and first deploy pending.
+
+- production containers for `api` (FastAPI + asyncio transcription worker in one image) and `web` (Next.js standalone)
+- `docker-compose.production.yml` (Caddy / web / api / private db), `deploy/Caddyfile` (HTTPS, `/api` prefix strip), `deploy/.env.production.example`
+- `WEB_ORIGIN` setting replaces the hardcoded CORS localhost origin
+- DB migration + backup/update/rollback scripts under `deploy/scripts/`, runbook at `docs/operations/oracle-vm.md`, hosted smoke-test checklist at `docs/operations/oracle-vm-smoke-test.md`
+- recording uploads remain disabled; Supabase stays the auth provider; VM Postgres holds application rows only
+- this is a development/small-church hosting milestone — **not** completion of multi-tenant security, campaign delivery, or the official YouTube provider
+
+Remaining: OCI provisioning + DNS + ingress (operator, in console), secrets, database dump/restore, first deploy, hosted smoke tests, go/no-go review.
+
+## Phase 12 — SaaS Expansion
 
 Later:
 
