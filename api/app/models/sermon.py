@@ -43,6 +43,9 @@ class Sermon(Base):
     youtube_video_id: Mapped[str | None] = mapped_column(
         String(20), nullable=True, index=True
     )
+    # Original YouTube title, kept so AI-parsed metadata (preacher, passage,
+    # clean title) can be re-derived offline via --reparse.
+    youtube_title: Mapped[str | None] = mapped_column(String(300), nullable=True)
     youtube_thumbnail_url: Mapped[str | None] = mapped_column(
         String(500), nullable=True
     )
