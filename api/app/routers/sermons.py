@@ -138,8 +138,16 @@ def update_sermon(
     _user: uuid.UUID = Depends(get_current_user_uuid),
 ):
     sermon = _get_sermon_or_404(db, sermon_id)
-    for field, value in payload.model_dump(exclude_unset=True).items():
+    data = payload.model_dump(exclude_unset=True)
+    for field, value in data.items():
         setattr(sermon, field, value)
+
+    # A manually pasted/edited transcript is by definition a good transcript:
+    # clear any stale failure state from an earlier transcription attempt.
+    if data.get("transcript") and data["transcript"].strip():
+        sermon.transcript_status = "ready"
+        sermon.transcript_error = None
+
     db.commit()
     db.refresh(sermon)
     return sermon

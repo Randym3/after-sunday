@@ -812,6 +812,12 @@ export function SermonWorkspace({
                     ? "Saved — AI follow-up drafts have been cleared."
                     : "Saved.",
                 );
+                toast(
+                  wasDrafted && hasMetaChange
+                    ? "Sermon saved — AI drafts cleared"
+                    : "Sermon saved",
+                  "success",
+                );
                 window.setTimeout(
                   () => setDetailsMessage(""),
                   6_000,
@@ -840,6 +846,7 @@ export function SermonWorkspace({
                     : {}),
                 });
                 setDetailsMessage("Saved.");
+                toast("Sermon saved", "success");
               }
             }}
           />

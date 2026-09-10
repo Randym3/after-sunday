@@ -4,6 +4,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 
 import { SermonForm } from "@/components/sermons/SermonForm";
+import { useToast } from "@/components/ui/Toast";
 import { createSermon, updateSermon } from "@/lib/api/sermons";
 import { Sermon } from "@/types/sermon";
 import { CreateSermonInput } from "@/types/sermon";
@@ -25,6 +26,7 @@ type Flow =
 
 export function CreateSermonFlow() {
   const router = useRouter();
+  const { toast } = useToast();
   const [flow, setFlow] = useState<Flow>({ stage: "form" });
   const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
@@ -82,7 +84,7 @@ export function CreateSermonFlow() {
 
       setFlow({ stage: "uploading", sermonId: sermon.id, file });
     } catch (error) {
-      alert(errorMessage(error));
+      toast(errorMessage(error), "error");
     }
   }
 
@@ -92,9 +94,10 @@ export function CreateSermonFlow() {
       // There's already a sermon row — update it and navigate.
       try {
         await updateSermon(flow.sermonId, values);
+        toast("Sermon saved", "success");
         router.push(`/app/sermons/${flow.sermonId}`);
       } catch (error) {
-        alert(errorMessage(error));
+        toast(errorMessage(error), "error");
       }
       return;
     }
@@ -102,9 +105,10 @@ export function CreateSermonFlow() {
     // No file was dropped — create a new sermon (non-upload source).
     try {
       const sermon = await createSermon(values);
+      toast("Sermon created", "success");
       router.push(`/app/sermons/${sermon.id}`);
     } catch (error) {
-      alert(errorMessage(error));
+      toast(errorMessage(error), "error");
     }
   }
 
