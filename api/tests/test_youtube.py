@@ -140,4 +140,43 @@ def test_fetch_auto_captions_raises_when_missing(monkeypatch):
         asyncio.run(fetch_auto_captions("dQw4w9WgXcQ"))
         assert False, "expected RuntimeError"
     except RuntimeError as exc:
-        assert "No English captions" in str(exc)
+        assert "Caption fetch failed" in str(exc)
+
+
+def test_fetch_auto_captions_marks_no_english_captions(monkeypatch):
+    from youtube_transcript_api._errors import TranscriptsDisabled
+
+    class FakeApiDisabled:
+        def fetch(self, video_id, languages):
+            raise TranscriptsDisabled(video_id)
+
+    monkeypatch.setattr(
+        "app.services.youtube.YouTubeTranscriptApi", FakeApiDisabled
+    )
+    from app.services.youtube import NoEnglishCaptionsError
+
+    try:
+        asyncio.run(fetch_auto_captions("dQw4w9WgXcQ"))
+        assert False, "expected NoEnglishCaptionsError"
+    except NoEnglishCaptionsError as exc:
+        assert "[no-english-captions]" in str(exc)
+        assert "captions disabled" in str(exc)
+
+
+def test_fetch_auto_captions_marks_no_transcript_found(monkeypatch):
+    from youtube_transcript_api._errors import NoTranscriptFound
+
+    class FakeApiNoEnglish:
+        def fetch(self, video_id, languages):
+            raise NoTranscriptFound(video_id, list(languages), [])
+
+    monkeypatch.setattr(
+        "app.services.youtube.YouTubeTranscriptApi", FakeApiNoEnglish
+    )
+    from app.services.youtube import NoEnglishCaptionsError
+
+    try:
+        asyncio.run(fetch_auto_captions("dQw4w9WgXcQ"))
+        assert False, "expected NoEnglishCaptionsError"
+    except NoEnglishCaptionsError as exc:
+        assert "[no-english-captions]" in str(exc)

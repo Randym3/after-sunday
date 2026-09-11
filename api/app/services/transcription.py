@@ -46,6 +46,14 @@ Congregation: Amen.
 
 VELMA_BATCH_URL = "https://platform.modulate.ai/api/velma-2-stt-batch"
 
+# Minimum pause between consecutive YouTube caption fetches. YouTube rate
+# limits (and eventually IP-blocks) hosts that request captions too quickly;
+# pacing each import keeps a bulk run under the threshold.
+YOUTUBE_IMPORT_DELAY_SECONDS = 8.0
+# When YouTube signals a block (HTTP 429 / ip_blocked), pause future caption
+# imports for this long before trying again instead of hammering through it.
+YOUTUBE_BLOCK_COOLDOWN_SECONDS = 900.0
+
 # Velma's utterances can be very long (tens of seconds of continuous
 # speech), so paragraph breaks are driven by sentence count rather than
 # utterance boundaries. These are the tuning knobs.
@@ -53,6 +61,42 @@ SENTENCES_PER_PARAGRAPH = 3
 # A silence gap at least this long between consecutive utterances also
 # starts a new paragraph (a genuine dramatic pause).
 PAUSE_PARAGRAPH_THRESHOLD_MS = 1500
+
+
+async def _youtube_rate_limit_pause() -> None:
+    """Pause between consecutive YouTube caption imports to avoid blocks."""
+    await asyncio.sleep(YOUTUBE_IMPORT_DELAY_SECONDS)
+
+
+# Module-level state shared by the worker loop: when YouTube signals a block
+# (rate-limit / ip_blocked), later caption fetches wait for the cooldown to
+# expire instead of hammering YouTube through the block.
+_youtube_block_until: float = 0.0
+
+
+def _youtube_block_message(job_error: str | None, sermon_error: str | None) -> bool:
+    """True when a job failure looks like YouTube blocking this host."""
+    combined = f"{job_error or ''}\n{sermon_error or ''}"
+    markers = (
+        "IpBlocked",
+        "ip_blocked",
+        "RequestBlocked",
+        "TooManyRequests",
+        "429",
+        "blocking requests from your IP",
+    )
+    return any(marker in combined for marker in markers)
+
+
+def _mark_youtube_blocked() -> None:
+    global _youtube_block_until
+    _youtube_block_until = asyncio.get_event_loop().time() + (
+        YOUTUBE_BLOCK_COOLDOWN_SECONDS
+    )
+    print(
+        f"[transcribe] YouTube rate limit detected — pausing caption "
+        f"imports for {YOUTUBE_BLOCK_COOLDOWN_SECONDS / 60:.0f} minutes"
+    )
 
 
 @contextmanager
@@ -358,6 +402,12 @@ async def _process_transcription_job(
             db.commit()
         except Exception:
             print(f"[transcribe] Failed to record failure: {traceback.format_exc()}")
+        # A caption fetch that looks like an IP block means the *next*
+        # fetches would fail too — cool down before processing more.
+        if job.provider == "youtube_captions" and _youtube_block_message(
+            tb, err_msg
+        ):
+            _mark_youtube_blocked()
 
 
 async def run_transcription_worker(
@@ -370,6 +420,7 @@ async def run_transcription_worker(
     server.  Each job gets its own database session and is committed
     independently so a single failure doesn't block the queue.
     """
+    global _youtube_block_until
     print(f"[transcribe] Worker started (provider={type(provider).__name__})")
 
     while True:
@@ -378,6 +429,28 @@ async def run_transcription_worker(
 
             db = SessionLocal()
             try:
+                # Respect the YouTube block cooldown before picking up the
+                # next caption job (leave file-transcription jobs alone).
+                if _youtube_block_until > 0.0:
+                    remaining = _youtube_block_until - asyncio.get_event_loop().time()
+                    if remaining > 0:
+                        next_caption = db.scalars(
+                            select(TranscriptionJob)
+                            .where(
+                                TranscriptionJob.status == "queued",
+                                TranscriptionJob.provider == "youtube_captions",
+                            )
+                            .limit(1)
+                        ).first()
+                        if next_caption is not None:
+                            print(
+                                f"[transcribe] Waiting {remaining:.0f}s for "
+                                f"YouTube cooldown"
+                            )
+                            continue
+                    else:
+                        _youtube_block_until = 0.0
+
                 job = db.scalars(
                     select(TranscriptionJob)
                     .where(TranscriptionJob.status == "queued")
@@ -392,7 +465,13 @@ async def run_transcription_worker(
                 job.started_at = datetime.now(timezone.utc)
                 db.commit()
 
+                was_youtube = job.provider == "youtube_captions"
                 await _process_transcription_job(db, job, provider)
+
+                # Pace consecutive YouTube caption imports so the bulk
+                # import doesn't trip YouTube's rate limiting.
+                if was_youtube:
+                    await _youtube_rate_limit_pause()
             finally:
                 db.close()
 

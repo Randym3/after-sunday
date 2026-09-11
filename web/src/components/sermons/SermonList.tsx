@@ -24,10 +24,17 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
-function transcriptBadge(status: string) {
+function transcriptBadge(status: string, transcriptError?: string | null) {
   if (status === "ready") return <Badge variant="success">Ready</Badge>;
   if (status === "processing" || status === "queued")
     return <Badge variant="warning">Transcribing</Badge>;
+  if (status === "failed") {
+    return transcriptError?.includes("[no-english-captions]") ? (
+      <Badge variant="neutral">No English captions</Badge>
+    ) : (
+      <Badge variant="danger">Failed</Badge>
+    );
+  }
   return <Badge variant="neutral">None</Badge>;
 }
 
@@ -69,7 +76,8 @@ const COLUMNS: DataTableColumn<Sermon>[] = [
   {
     key: "transcriptStatus",
     label: "Transcript",
-    render: (sermon) => transcriptBadge(sermon.transcriptStatus),
+    render: (sermon) =>
+      transcriptBadge(sermon.transcriptStatus, sermon.transcriptError),
   },
   {
     key: "aiDraftStatus",

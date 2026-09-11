@@ -891,11 +891,19 @@ export function SermonWorkspace({
             {sermon.transcriptStatus !== "ready" ? (
               <div className="py-10 text-center">
                 <h3 className="font-semibold text-ink">
-                  {status.label}
+                  {sermon.transcriptError?.includes(
+                    "[no-english-captions]",
+                  )
+                    ? "No English captions available"
+                    : status.label}
                 </h3>
 
                 <p className="mx-auto mt-2 max-w-lg text-sm leading-6 text-ink-soft">
-                  {status.description}
+                  {sermon.transcriptError?.includes(
+                    "[no-english-captions]",
+                  )
+                    ? "This YouTube video has no English captions or transcript to import. Try uploading a recording or pasting a transcript instead."
+                    : status.description}
                 </p>
 
                 {sermon.transcriptStatus === "failed" &&
@@ -905,7 +913,10 @@ export function SermonWorkspace({
                       Error details
                     </p>
                     <p className="mt-1 break-words font-mono text-xs leading-5 text-red-600">
-                      {sermon.transcriptError}
+                      {sermon.transcriptError.replace(
+                        "[no-english-captions] ",
+                        "",
+                      )}
                     </p>
                   </div>
                 ) : (

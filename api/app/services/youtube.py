@@ -8,6 +8,7 @@ or the transcription worker.
 from __future__ import annotations
 
 import re
+import sys
 from dataclasses import dataclass
 from datetime import date, datetime, timezone
 
@@ -15,6 +16,11 @@ import yt_dlp
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 from youtube_transcript_api import YouTubeTranscriptApi
+from youtube_transcript_api._errors import (
+    CouldNotRetrieveTranscript,
+    NoTranscriptFound,
+    TranscriptsDisabled,
+)
 
 from app.models.sermon import Sermon
 from app.models.transcription_job import TranscriptionJob
@@ -68,6 +74,27 @@ def detect_scripture_reference(text: str | None) -> str | None:
     if ordinal:
         reference = f"{ordinal.strip()} {reference}"
     return reference
+
+
+# Marker stored in sermons.transcript_error when a caption import failed
+# because the video has no English captions. The bulk import sorts these
+# sermons last, and the UI uses it to show the real reason.
+NO_CAPTIONS_MARKER = "[no-english-captions]"
+
+
+class NoEnglishCaptionsError(RuntimeError):
+    """The video has no usable English transcript.
+
+    Raised for the permanent youtube-transcript-api failures: captions
+    disabled on the video, no English track, or the video unavailable.
+    The bulk import sorts these sermons last — retrying them is pointless
+    until a human picks a different source.
+    """
+
+
+def _is_no_english_captions_error(exc: BaseException) -> bool:
+    """True for permanent 'this video has no English captions' failures."""
+    return isinstance(exc, (TranscriptsDisabled, NoTranscriptFound))
 
 
 @dataclass
@@ -128,8 +155,37 @@ async def fetch_auto_captions(
             video_id, languages=list(preferred_languages)
         )
     except Exception as exc:
+        # One concise terminal line - the full error detail still lands on
+        # the sermon/job rows for the frontend to display.
+        root = exc
+        seen: set[int] = set()
+        while root.__cause__ is not None and id(root.__cause__) not in seen:
+            seen.add(id(root))
+            root = root.__cause__
+        root_name = type(root).__name__
+        root_msg = str(root).strip().splitlines()[0] if str(root) else ""
+        print(
+            f"[youtube] Caption fetch failed for {video_id}: "
+            f"{root_name}{f' ({root_msg[:200]})' if root_msg else ''}",
+            file=sys.stderr,
+        )
+        if _is_no_english_captions_error(exc):
+            reason = type(exc).__name__
+            if isinstance(exc, TranscriptsDisabled):
+                reason = "the video has captions disabled"
+            elif isinstance(exc, NoTranscriptFound):
+                reason = "no English transcript exists (only other languages)"
+            raise NoEnglishCaptionsError(
+                f"{NO_CAPTIONS_MARKER} No English captions available for "
+                f"video {video_id}: {reason}."
+            ) from exc
+        if isinstance(exc, CouldNotRetrieveTranscript):
+            raise RuntimeError(
+                f"Could not retrieve captions for video {video_id}: "
+                f"{type(exc).__name__}: {exc}"
+            ) from exc
         raise RuntimeError(
-            f"No English captions available for video {video_id}."
+            f"Caption fetch failed for video {video_id}: {exc}"
         ) from exc
 
     lines = fetched.to_raw_data()

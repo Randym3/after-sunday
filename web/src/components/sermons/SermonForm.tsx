@@ -1189,6 +1189,18 @@ export function SermonForm({
                 transcript here before creating the sermon.
               </p>
 
+              {currentYoutubeUrl ? (
+                <a
+                  href={currentYoutubeUrl}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex w-fit items-center gap-1.5 rounded-full bg-primary px-4 py-2 text-xs font-semibold text-white shadow-sm transition hover:bg-primary/90"
+                >
+                  View on YouTube
+                  <span aria-hidden="true">↗</span>
+                </a>
+              ) : null}
+
               <div className="mt-4 flex flex-col gap-3 rounded-2xl border border-edge bg-panel-2 p-4 sm:flex-row sm:items-center sm:justify-between">
                 <div>
                   <p className="text-sm font-semibold text-ink">

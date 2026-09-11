@@ -31,3 +31,32 @@ export function importYoutubeTranscript(
     body: JSON.stringify({ url }),
   });
 }
+
+export interface BulkImportResult {
+  queued: number;
+  skipped: number;
+}
+
+export interface BulkImportStatus {
+  total: number;
+  ready: number;
+  failed: number;
+  queued: number;
+  processing: number;
+}
+
+export function bulkImportYoutubeTranscripts(): Promise<BulkImportResult> {
+  return apiFetch<BulkImportResult>("/youtube/bulk-import-transcripts", {
+    method: "POST",
+  });
+}
+
+export function getBulkImportStatus(): Promise<BulkImportStatus> {
+  return apiFetch<BulkImportStatus>("/youtube/bulk-import-status");
+}
+
+export function cancelBulkImport(): Promise<{ cancelled: number }> {
+  return apiFetch<{ cancelled: number }>("/youtube/bulk-import-cancel", {
+    method: "POST",
+  });
+}
