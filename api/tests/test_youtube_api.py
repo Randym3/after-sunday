@@ -2,10 +2,13 @@ import uuid
 
 import pytest
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 
 from app.auth import get_current_user_uuid
 from app.db import get_db
 from app.main import app
+from app.models.sermon import Sermon
+from app.models.transcription_job import TranscriptionJob
 
 
 @pytest.fixture
@@ -17,6 +20,107 @@ def client(db_session):
     app.dependency_overrides[get_current_user_uuid] = lambda: uuid.uuid4()
     yield TestClient(app)
     app.dependency_overrides.clear()
+
+
+def test_channel_sync_adds_missing_videos_without_transcription(
+    client, db_session, monkeypatch
+):
+    import app.routers.youtube as youtube_router
+
+    items = [
+        {
+            "video_id": "aaa111bbb22",
+            "title": "Sunday Service — Psalm 23",
+            "upload_date": "20260809",
+            "thumbnail": "https://img.example/aaa.jpg",
+        },
+        {
+            "video_id": "ccc333ddd44",
+            "title": "Church Update",
+            "upload_date": None,
+            "thumbnail": None,
+        },
+    ]
+    monkeypatch.setattr(
+        youtube_router.youtube_archive,
+        "iter_channel_uploads",
+        lambda channel_url, limit=None: iter(items[:limit] if limit else items),
+    )
+
+    response = client.post(
+        "/youtube/channel-sync",
+        json={"channelUrl": "https://www.youtube.com/@GraceChurch"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"videosFound": 2, "created": 2, "skipped": 0}
+
+    sermons = db_session.scalars(
+        select(Sermon).order_by(Sermon.youtube_video_id)
+    ).all()
+    assert [sermon.youtube_video_id for sermon in sermons] == [
+        "aaa111bbb22",
+        "ccc333ddd44",
+    ]
+    assert all(sermon.transcript_status == "not_started" for sermon in sermons)
+    assert db_session.scalars(select(TranscriptionJob)).all() == []
+    assert sermons[0].youtube_title == "Sunday Service — Psalm 23"
+    assert sermons[0].youtube_thumbnail_url == "https://img.example/aaa.jpg"
+
+    # A second sync sees the same video ids and creates nothing new.
+    response = client.post(
+        "/youtube/channel-sync",
+        json={"channelUrl": "https://www.youtube.com/@GraceChurch"},
+    )
+    assert response.status_code == 200
+    assert response.json() == {"videosFound": 2, "created": 0, "skipped": 2}
+
+
+def test_channel_sync_respects_limit(client, monkeypatch):
+    import app.routers.youtube as youtube_router
+
+    monkeypatch.setattr(
+        youtube_router.youtube_archive,
+        "iter_channel_uploads",
+        lambda channel_url, limit=None: iter(
+            [
+                {
+                    "video_id": "aaa111bbb22",
+                    "title": "Sermon",
+                    "upload_date": None,
+                }
+            ]
+        ),
+    )
+
+    response = client.post(
+        "/youtube/channel-sync",
+        json={
+            "channelUrl": "https://www.youtube.com/@GraceChurch",
+            "limit": 1,
+        },
+    )
+    assert response.status_code == 200
+    assert response.json()["videosFound"] == 1
+
+
+def test_channel_setting_is_saved_and_returned(client, monkeypatch):
+    import app.routers.youtube as youtube_router
+
+    monkeypatch.setattr(
+        youtube_router.youtube_archive,
+        "iter_channel_uploads",
+        lambda channel_url, limit=None: iter([]),
+    )
+
+    sync_response = client.post(
+        "/youtube/channel-sync",
+        json={"channelUrl": " https://www.youtube.com/@GraceChurch "},
+    )
+    assert sync_response.status_code == 200
+
+    response = client.get("/youtube/channel")
+    assert response.status_code == 200
+    assert response.json() == {"channelUrl": "https://www.youtube.com/@GraceChurch"}
 
 
 def test_preview_returns_metadata(client, monkeypatch):
@@ -54,11 +158,6 @@ def test_preview_rejects_non_youtube_url(client):
         "/youtube/preview", json={"url": "https://example.com/not-a-video"}
     )
     assert response.status_code == 422
-
-
-from sqlalchemy import select
-
-from app.models.transcription_job import TranscriptionJob
 
 
 def test_create_youtube_sermon_queues_caption_job(client, db_session):

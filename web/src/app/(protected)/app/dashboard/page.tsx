@@ -3,7 +3,7 @@ import Link from "next/link";
 import { AddMemberButton } from "@/components/dashboard/AddMemberButton";
 import { DashboardMetrics } from "@/components/dashboard/DashboardMetrics";
 import { UserGreeting } from "@/components/dashboard/UserGreeting";
-import { YoutubeImportCard } from "@/components/dashboard/YoutubeImportCard";
+import { YoutubeChannelSyncCard } from "@/components/dashboard/YoutubeChannelSyncCard";
 import { Button } from "@/components/ui/Button";
 import { PageHeader } from "@/components/ui/PageHeader";
 
@@ -30,7 +30,7 @@ export default function DashboardPage() {
       <DashboardMetrics />
 
       <div className="mt-4">
-        <YoutubeImportCard />
+        <YoutubeChannelSyncCard />
       </div>
 
       <div className="mt-6">

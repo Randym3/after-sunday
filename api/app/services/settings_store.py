@@ -13,6 +13,7 @@ from app.services.crypto import DecryptionError, decrypt_value, encrypt_value
 
 DB_RESEND_KEY = "resend_api_key"
 DB_EMAIL_FROM = "email_from"
+DB_YOUTUBE_CHANNEL_URL = "youtube_channel_url"
 
 # Keys whose values are secrets — encrypted at rest via app.services.crypto.
 SECRET_SETTING_KEYS = {DB_RESEND_KEY}

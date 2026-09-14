@@ -32,6 +32,29 @@ export function importYoutubeTranscript(
   });
 }
 
+export interface YoutubeChannel {
+  channelUrl: string | null;
+}
+
+export function getYoutubeChannel(): Promise<YoutubeChannel> {
+  return apiFetch<YoutubeChannel>("/youtube/channel");
+}
+
+export interface YoutubeChannelSyncResult {
+  videosFound: number;
+  created: number;
+  skipped: number;
+}
+
+export function syncYoutubeChannel(
+  channelUrl: string,
+): Promise<YoutubeChannelSyncResult> {
+  return apiFetch<YoutubeChannelSyncResult>("/youtube/channel-sync", {
+    method: "POST",
+    body: JSON.stringify({ channelUrl }),
+  });
+}
+
 export interface BulkImportResult {
   queued: number;
   skipped: number;

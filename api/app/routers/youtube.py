@@ -4,7 +4,7 @@ from datetime import date
 
 import yt_dlp
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -20,6 +20,12 @@ from app.services.youtube import (
     parse_youtube_video_id,
     queue_youtube_caption_import,
 )
+from app.services.settings_store import (
+    DB_YOUTUBE_CHANNEL_URL,
+    get_setting,
+    set_setting,
+)
+from scripts import import_youtube_archive as youtube_archive
 
 router = APIRouter(prefix="/youtube", tags=["youtube"])
 
@@ -28,6 +34,27 @@ class YoutubePreviewRequest(BaseModel):
     model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
 
     url: str
+
+
+class YoutubeChannelSyncRequest(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    channel_url: str = Field(min_length=1, max_length=500)
+    limit: int | None = Field(default=500, ge=1, le=500)
+
+
+class YoutubeChannelRead(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    channel_url: str | None
+
+
+class YoutubeChannelSyncRead(BaseModel):
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+    videos_found: int
+    created: int
+    skipped: int
 
 
 class YoutubePreviewRead(BaseModel):
@@ -68,6 +95,63 @@ def preview_youtube_video(
             detail="Could not load that video — check the URL and try again.",
         ) from exc
     return YoutubePreviewRead(**asdict(meta))
+
+
+@router.get("/channel", response_model=YoutubeChannelRead)
+def get_youtube_channel(
+    db: Session = Depends(get_db),
+    _user: uuid.UUID = Depends(get_current_user_uuid),
+) -> YoutubeChannelRead:
+    """Return the one saved YouTube channel for this organization."""
+    return YoutubeChannelRead(channel_url=get_setting(db, DB_YOUTUBE_CHANNEL_URL))
+
+
+@router.post("/channel-sync", response_model=YoutubeChannelSyncRead)
+def sync_youtube_channel(
+    payload: YoutubeChannelSyncRequest,
+    db: Session = Depends(get_db),
+    user_id: uuid.UUID = Depends(get_current_user_uuid),
+) -> YoutubeChannelSyncRead:
+    """Add missing uploads from a YouTube channel as sermon rows.
+
+    This is intentionally a metadata-only sync: it creates video-backed
+    sermons without queueing transcript work. A later transcript import can
+    be started for whichever sermons need one.
+    """
+    try:
+        items = list(
+            youtube_archive.iter_channel_uploads(
+                payload.channel_url, limit=payload.limit
+            )
+        )
+        result = youtube_archive.import_videos(
+            db,
+            user_id,
+            items,
+            parser=None,
+            include_all=True,
+            no_transcripts=True,
+        )
+        # app_settings is the application's organization-scoped settings
+        # store, so syncing a different URL replaces the single saved channel.
+        set_setting(db, DB_YOUTUBE_CHANNEL_URL, payload.channel_url.strip())
+        db.commit()
+    except yt_dlp.utils.DownloadError as exc:
+        raise HTTPException(
+            status_code=422,
+            detail="Could not load that YouTube channel — check the URL and try again.",
+        ) from exc
+    except Exception as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"YouTube channel sync failed: {exc}",
+        ) from exc
+
+    return YoutubeChannelSyncRead(
+        videos_found=len(items),
+        created=result["created"],
+        skipped=result["skipped"],
+    )
 
 
 @router.post("/bulk-import-transcripts")
