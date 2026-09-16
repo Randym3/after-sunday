@@ -63,6 +63,11 @@ const COLUMNS: DataTableColumn<Member>[] = [
     label: "Status",
     render: (member) => statusBadge(member.status),
   },
+  {
+    key: "createdAt",
+    label: "Created",
+    render: (member) => new Date(member.createdAt).toLocaleDateString(),
+  },
 ];
 
 const FILTER_COLUMNS: FilterColumn[] = [
@@ -104,7 +109,7 @@ export function MemberList() {
       filterColumns={FILTER_COLUMNS}
       fetchRows={listMembers}
       getRowId={(member) => member.id}
-      defaultSort={{ key: "lastName", dir: "asc" }}
+      defaultSort={{ key: "createdAt", dir: "desc" }}
       countLabel={(count) => `${count} ${count === 1 ? "member" : "members"}`}
       editHref={(member) => `/app/members/${member.id}`}
       onDelete={async (member) => {

@@ -100,8 +100,8 @@ export function FilterSidebar({
   }
 
   return (
-    <aside className="w-60 flex-shrink-0 rounded-2xl border border-edge bg-panel p-4 shadow-sm">
-      <div className="mb-4 flex items-center justify-between">
+    <aside className="w-52 flex-shrink-0 rounded-2xl border border-edge bg-panel p-3 shadow-sm">
+      <div className="mb-3 flex items-center justify-between">
         <p className="text-xs font-semibold uppercase tracking-wide text-ink-soft">
           Filter
         </p>
@@ -117,7 +117,7 @@ export function FilterSidebar({
         )}
       </div>
 
-      <div className="space-y-4">
+      <div className="space-y-3">
         {columns.map((col) => {
           const options = entityValues[col.key] ?? [];
 

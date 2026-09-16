@@ -48,6 +48,7 @@ Because the Lord is our Shepherd, we can trust His direction, rest in His provis
 
 const fallbackSermon: Sermon = {
   id: "demo",
+  createdAt: "2026-08-02T00:00:00.000Z",
   title: "The Good Shepherd",
   preacher: "Pastor John",
   scriptureReference: "Psalm 23",

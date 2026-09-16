@@ -18,6 +18,7 @@ export type EmailStatus = "not_started" | "draft" | "ready" | "sent";
 
 export interface Sermon {
   id: string;
+  createdAt: string;
   title: string;
   preacher?: string | null;
   scriptureReference?: string | null;

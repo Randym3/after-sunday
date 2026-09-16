@@ -10,6 +10,7 @@ from scripts.import_youtube_archive import (
     import_videos,
     iter_channel_uploads,
     reparse_videos,
+    _videos_tab_url,
 )
 
 
@@ -48,6 +49,25 @@ class FakeParser:
             "scripture_reference": None,
             "is_sermon": True,
         }
+
+
+def test_channel_url_uses_videos_tab():
+    assert (
+        _videos_tab_url("https://www.youtube.com/@GraceChurch")
+        == "https://www.youtube.com/@GraceChurch/videos"
+    )
+    assert (
+        _videos_tab_url("https://www.youtube.com/@GraceChurch/")
+        == "https://www.youtube.com/@GraceChurch/videos"
+    )
+    assert (
+        _videos_tab_url("https://www.youtube.com/@GraceChurch/videos")
+        == "https://www.youtube.com/@GraceChurch/videos"
+    )
+    assert (
+        _videos_tab_url("https://www.youtube.com/@GraceChurch/videos?view=0")
+        == "https://www.youtube.com/@GraceChurch/videos?view=0"
+    )
 
 
 def test_iter_channel_uploads(monkeypatch):

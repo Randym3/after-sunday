@@ -35,6 +35,11 @@ const COLUMNS: DataTableColumn<Group>[] = [
       <span className="font-medium text-ink">{group.memberCount}</span>
     ),
   },
+  {
+    key: "createdAt",
+    label: "Created",
+    render: (group) => new Date(group.createdAt).toLocaleDateString(),
+  },
 ];
 
 const FILTER_COLUMNS: FilterColumn[] = [
@@ -49,7 +54,7 @@ export function GroupList() {
       filterColumns={FILTER_COLUMNS}
       fetchRows={listGroups}
       getRowId={(group) => group.id}
-      defaultSort={{ key: "name", dir: "asc" }}
+      defaultSort={{ key: "createdAt", dir: "desc" }}
       countLabel={(count) => `${count} ${count === 1 ? "group" : "groups"}`}
       editHref={(group) => `/app/groups/${group.id}`}
       onDelete={async (group) => {

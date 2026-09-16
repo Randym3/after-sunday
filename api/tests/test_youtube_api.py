@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime, timezone
 
 import pytest
 from fastapi.testclient import TestClient
@@ -121,6 +122,30 @@ def test_channel_setting_is_saved_and_returned(client, monkeypatch):
     response = client.get("/youtube/channel")
     assert response.status_code == 200
     assert response.json() == {"channelUrl": "https://www.youtube.com/@GraceChurch"}
+
+
+def test_sermon_list_returns_newest_created_first(client, db_session):
+    older = Sermon(
+        created_by_user_id=uuid.uuid4(),
+        title="Older sermon",
+        source_type="youtube",
+        created_at=datetime(2026, 9, 12, tzinfo=timezone.utc),
+    )
+    newer = Sermon(
+        created_by_user_id=uuid.uuid4(),
+        title="Newer sermon",
+        source_type="youtube",
+        created_at=datetime(2026, 9, 13, tzinfo=timezone.utc),
+    )
+    db_session.add_all([older, newer])
+    db_session.commit()
+
+    response = client.get("/sermons")
+    assert response.status_code == 200
+    assert [row["title"] for row in response.json()] == [
+        "Newer sermon",
+        "Older sermon",
+    ]
 
 
 def test_preview_returns_metadata(client, monkeypatch):

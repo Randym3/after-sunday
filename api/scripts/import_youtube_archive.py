@@ -39,6 +39,7 @@ import sys
 import uuid
 from datetime import datetime
 from typing import Iterator
+from urllib.parse import urlsplit, urlunsplit
 
 import yt_dlp
 from sqlalchemy import select
@@ -59,6 +60,24 @@ from app.services.youtube import (
 )
 
 
+def _videos_tab_url(channel_url: str) -> str:
+    """Use a channel's Videos tab instead of its landing page.
+
+    YouTube's channel landing page may expose only featured playlists (and
+    sometimes no video entries at all). The Videos tab is the upload feed and
+    is where recent sermons, including newly published uploads, are listed.
+    """
+    url = channel_url.strip()
+    parts = urlsplit(url)
+    path = parts.path.rstrip("/")
+    if not parts.netloc or not path:
+        return url
+    tab_suffixes = ("/videos", "/streams", "/shorts", "/playlists", "/community", "/about")
+    if path.endswith(tab_suffixes):
+        return url
+    return urlunsplit((parts.scheme, parts.netloc, f"{path}/videos", parts.query, parts.fragment))
+
+
 def iter_channel_uploads(
     channel_url: str,
     limit: int | None = None,
@@ -72,7 +91,7 @@ def iter_channel_uploads(
         "no_warnings": True,
     }
     with yt_dlp.YoutubeDL(opts) as ydl:
-        info = ydl.extract_info(channel_url.strip(), download=False)
+        info = ydl.extract_info(_videos_tab_url(channel_url), download=False)
 
     entries = info.get("entries") or []
     count = 0

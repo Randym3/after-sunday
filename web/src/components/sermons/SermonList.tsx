@@ -24,6 +24,19 @@ function formatDate(value?: string | null) {
   }).format(date);
 }
 
+function formatCreatedDate(value?: string | null) {
+  if (!value) return "—";
+
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+
+  return new Intl.DateTimeFormat("en-US", {
+    month: "2-digit",
+    day: "2-digit",
+    year: "numeric",
+  }).format(date);
+}
+
 function transcriptBadge(status: string, transcriptError?: string | null) {
   if (status === "ready") return <Badge variant="success">Ready</Badge>;
   if (status === "processing" || status === "queued")
@@ -74,6 +87,11 @@ const COLUMNS: DataTableColumn<Sermon>[] = [
     render: (sermon) => formatDate(sermon.preachedAt) || "\u2014",
   },
   {
+    key: "createdAt",
+    label: "Created",
+    render: (sermon) => formatCreatedDate(sermon.createdAt),
+  },
+  {
     key: "transcriptStatus",
     label: "Transcript",
     render: (sermon) =>
@@ -122,7 +140,9 @@ export function SermonList() {
       filterColumns={FILTER_COLUMNS}
       fetchRows={listSermons}
       getRowId={(sermon) => sermon.id}
-      defaultSort={{ key: "preachedAt", dir: "desc" }}
+      // Sort by insertion time so newly synced YouTube sermons appear first,
+      // even when YouTube did not provide an upload date.
+      defaultSort={{ key: "createdAt", dir: "desc" }}
       countLabel={(count) => `${count} ${count === 1 ? "sermon" : "sermons"}`}
       editHref={(sermon) => `/app/sermons/${sermon.id}`}
       onDelete={async (sermon) => {
